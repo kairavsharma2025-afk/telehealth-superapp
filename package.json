@@ -1,0 +1,28 @@
+{
+  "name": "telehealth-superapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI TeleHealth Super App — production-grade SaaS (learning project)",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/api-gateway",
+    "packages/auth-service",
+    "packages/user-service",
+    "packages/appointment-service",
+    "packages/upload-service",
+    "packages/notification-service",
+    "packages/web-doctor",
+    "packages/web-admin",
+    "packages/mobile-patient"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d postgres mongo",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres mongo",
+    "db:psql": "docker compose exec postgres psql -U telehealth -d telehealth",
+    "db:mongo": "docker compose exec mongo mongosh -u telehealth -p telehealth_dev_pw --authenticationDatabase admin"
+  }
+}

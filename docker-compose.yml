@@ -1,0 +1,88 @@
+# =====================================================================
+# TELEHEALTH SUPERAPP — local development stack
+#
+# Phase 2: only databases live here. We will add the 6 Node services
+# in Phase 3, and a single nginx reverse proxy in Phase 7.
+#
+# Usage:
+#   docker compose up -d           # start in background
+#   docker compose ps              # see status
+#   docker compose logs -f mongo   # tail logs
+#   docker compose down            # stop (data persists in named volumes)
+#   docker compose down -v         # stop AND wipe data (destructive)
+# =====================================================================
+
+services:
+
+  # -------------------------------------------------------------------
+  # PostgreSQL 16 — primary relational DB
+  # Stores: users, doctors, patients, appointments, prescriptions,
+  #         payments, audit logs.
+  # -------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: telehealth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-telehealth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telehealth_dev_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-telehealth}
+      # Use scram-sha-256 instead of legacy md5 (Postgres 14+ default)
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      # host:container — only bind to localhost, never 0.0.0.0 in dev
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-telehealth} -d ${POSTGRES_DB:-telehealth}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - telehealth-net
+
+  # -------------------------------------------------------------------
+  # MongoDB 7 — secondary unstructured DB
+  # Stores: chat_messages, ai_conversations, notification_logs,
+  #         flexible patient questionnaires.
+  # -------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: telehealth-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-telehealth}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-telehealth_dev_pw}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-telehealth_logs}
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - telehealth-net
+
+# -------------------------------------------------------------------
+# Named volumes — Docker manages where these live on disk.
+# Survives `docker compose down`. Wiped only on `down -v`.
+# -------------------------------------------------------------------
+volumes:
+  postgres_data:
+    name: telehealth_postgres_data
+  mongo_data:
+    name: telehealth_mongo_data
+
+# -------------------------------------------------------------------
+# Custom network — services talk to each other by service name
+# (e.g., auth-service connects to "postgres:5432", not localhost).
+# -------------------------------------------------------------------
+networks:
+  telehealth-net:
+    name: telehealth-net
+    driver: bridge
