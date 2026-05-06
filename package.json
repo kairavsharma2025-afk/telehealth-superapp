@@ -16,7 +16,8 @@
     "packages/notification-service",
     "packages/web-doctor",
     "packages/web-admin",
-    "packages/mobile-patient"
+    "packages/mobile-patient",
+    "packages/seed"
   ],
   "scripts": {
     "infra:up": "docker compose up -d postgres mongo minio",
@@ -26,7 +27,10 @@
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres mongo",
     "db:psql": "docker compose exec postgres psql -U telehealth -d telehealth",
-    "db:mongo": "docker compose exec mongo mongosh -u telehealth -p telehealth_dev_pw --authenticationDatabase admin"
+    "db:mongo": "docker compose exec mongo mongosh -u telehealth -p telehealth_dev_pw --authenticationDatabase admin",
+    "db:seed": "npm -w @telehealth/seed run seed",
+    "db:backup": "bash scripts/backup.sh",
+    "db:restore": "bash scripts/restore.sh"
   },
   "devDependencies": {
     "rimraf": "^5.0.10",
