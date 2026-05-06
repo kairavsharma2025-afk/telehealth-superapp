@@ -29,6 +29,9 @@ export function buildServer(): Express {
   app.use("/appointments", requireAuth);
   app.use(buildProxy({ prefix: "/appointments", target: config.upstreams.appointment }));
 
+  app.use("/uploads", requireAuth);
+  app.use(buildProxy({ prefix: "/uploads", target: config.upstreams.upload }));
+
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
   });
