@@ -24,5 +24,9 @@
     "db:logs": "docker compose logs -f postgres mongo",
     "db:psql": "docker compose exec postgres psql -U telehealth -d telehealth",
     "db:mongo": "docker compose exec mongo mongosh -u telehealth -p telehealth_dev_pw --authenticationDatabase admin"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.10",
+    "typescript": "^5.9.3"
   }
 }
