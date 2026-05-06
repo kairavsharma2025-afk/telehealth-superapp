@@ -18,7 +18,8 @@
     "packages/web-doctor",
     "packages/web-admin",
     "packages/mobile-patient",
-    "packages/seed"
+    "packages/seed",
+    "packages/e2e"
   ],
   "scripts": {
     "infra:up": "docker compose up -d postgres mongo minio",
@@ -34,7 +35,8 @@
     "db:restore": "bash scripts/restore.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -b packages/shared && npm run typecheck --workspaces --if-present"
+    "typecheck": "tsc -b packages/shared && npm run typecheck --workspaces --if-present",
+    "test:e2e": "npm -w @telehealth/e2e run test"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
