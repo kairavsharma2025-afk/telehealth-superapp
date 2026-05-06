@@ -2,6 +2,7 @@ import { config } from "./config.js";
 import { pool, pingDb } from "./db.js";
 import { logger } from "./logger.js";
 import { buildServer } from "./server.js";
+import { startWorker, stopWorker } from "./worker.js";
 
 async function main() {
   await pingDb();
@@ -16,11 +17,14 @@ async function main() {
       "listening",
     );
   });
+  startWorker();
 
   const shutdown = (signal: string) => {
     logger.info({ signal }, "shutting down");
-    server.close(() => {
-      void pool.end().finally(() => process.exit(0));
+    void stopWorker().finally(() => {
+      server.close(() => {
+        void pool.end().finally(() => process.exit(0));
+      });
     });
   };
   process.on("SIGINT", () => shutdown("SIGINT"));

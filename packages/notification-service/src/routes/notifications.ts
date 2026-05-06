@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler, parseBody } from "../lib/http.js";
 import { sendNotificationSchema, type Channel } from "../lib/validation.js";
 import { dispatch, type Recipient } from "../lib/senders.js";
+import { fetchRecipient } from "../lib/recipients.js";
 
 export const notificationsRouter: Router = Router();
 notificationsRouter.use(requireAuth);
@@ -166,19 +167,6 @@ async function tryDispatchAndPersist(
     if (!updatedRow) throw new ServiceError("INTERNAL", "Update returned no row");
     return updatedRow;
   }
-}
-
-async function fetchRecipient(userId: string): Promise<Recipient> {
-  const result = await pool.query<{ id: string; email: string; phone: string | null }>(
-    `SELECT u.id, u.email, p.phone
-       FROM users u
-       LEFT JOIN profiles p ON p.user_id = u.id
-      WHERE u.id = $1 AND u.is_active = TRUE`,
-    [userId],
-  );
-  const row = result.rows[0];
-  if (!row) throw new ServiceError("BAD_REQUEST", "Recipient does not exist or is inactive");
-  return { userId: row.id, email: row.email, phone: row.phone };
 }
 
 async function fetchVisible(
