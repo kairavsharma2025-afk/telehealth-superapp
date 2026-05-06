@@ -23,6 +23,9 @@ export function buildServer(): Express {
 
   app.use(buildProxy({ prefix: "/auth", target: config.upstreams.auth }));
 
+  app.use("/users", requireAuth);
+  app.use(buildProxy({ prefix: "/users", target: config.upstreams.user }));
+
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
   });
