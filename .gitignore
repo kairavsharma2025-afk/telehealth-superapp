@@ -58,3 +58,4 @@ android/app/build/
 .parcel-cache/
 .eslintcache
 *.tsbuildinfo
+backups/
