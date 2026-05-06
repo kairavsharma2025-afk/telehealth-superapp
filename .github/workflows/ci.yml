@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  # ---------------------------------------------------------------
+  # Fast feedback: typecheck + lint, no services, no browser.
+  # Most regressions surface here.
+  # ---------------------------------------------------------------
+  static:
+    name: typecheck + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build shared (project refs)
+        run: npm -w @telehealth/shared run build
+
+      - name: Typecheck every workspace
+        run: |
+          npm -w @telehealth/auth-service run build
+          npm -w @telehealth/user-service run build
+          npm -w @telehealth/appointment-service run build
+          npm -w @telehealth/upload-service run build
+          npm -w @telehealth/notification-service run build
+          npm -w @telehealth/api-gateway run build
+          npm -w @telehealth/web-doctor run typecheck
+          npm -w @telehealth/web-admin run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+  # ---------------------------------------------------------------
+  # Slow feedback: spin up postgres + minio, boot every service,
+  # boot vite, run Playwright. Real regression catcher.
+  # ---------------------------------------------------------------
+  e2e:
+    name: e2e (Playwright)
+    runs-on: ubuntu-latest
+    needs: static
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: telehealth
+          POSTGRES_PASSWORD: telehealth_dev_pw
+          POSTGRES_DB: telehealth
+          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+          POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U telehealth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+          - 9001:9001
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://telehealth:telehealth_dev_pw@localhost:5432/telehealth
+      JWT_ACCESS_SECRET: ci_access_secret_must_be_64_hex_chars_long_for_realism_only_ci_____
+      JWT_REFRESH_SECRET: ci_refresh_secret_must_be_64_hex_chars_long_for_realism_only_ci____
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 30d
+      AUTH_PORT: 4001
+      USER_PORT: 4002
+      APPOINTMENT_PORT: 4003
+      UPLOAD_PORT: 4004
+      NOTIFICATION_PORT: 4005
+      GATEWAY_PORT: 4000
+      S3_ENDPOINT: http://localhost:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: telehealth-uploads-ci
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_FORCE_PATH_STYLE: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npm -w @telehealth/e2e exec playwright install --with-deps chromium
+
+      - name: Build shared
+        run: npm -w @telehealth/shared run build
+
+      - name: Apply DB migrations
+        run: |
+          npm -w @telehealth/auth-service run migrate
+          npm -w @telehealth/user-service run migrate
+          npm -w @telehealth/appointment-service run migrate
+
+      - name: Start services
+        run: |
+          npm -w @telehealth/auth-service run dev > /tmp/auth.log 2>&1 &
+          npm -w @telehealth/appointment-service run dev > /tmp/appt.log 2>&1 &
+          npm -w @telehealth/api-gateway run dev > /tmp/gw.log 2>&1 &
+          npm -w @telehealth/web-doctor run dev > /tmp/web.log 2>&1 &
+
+          # wait for everything
+          for url in \
+            http://localhost:4001/health \
+            http://localhost:4003/health \
+            http://localhost:4000/health \
+            http://localhost:5173; do
+            for i in $(seq 1 30); do
+              if curl -fsS "$url" > /dev/null 2>&1; then
+                echo "ready: $url"
+                break
+              fi
+              sleep 1
+            done
+          done
+
+      - name: Run Playwright
+        run: npm run test:e2e
+        env:
+          E2E_GATEWAY_URL: http://localhost:4000
+          E2E_WEB_DOCTOR_URL: http://localhost:5173
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: packages/e2e/playwright-report
+          retention-days: 7
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          echo "===== auth ====="
+          tail -200 /tmp/auth.log || true
+          echo "===== appt ====="
+          tail -200 /tmp/appt.log || true
+          echo "===== gateway ====="
+          tail -200 /tmp/gw.log || true
+          echo "===== vite ====="
+          tail -200 /tmp/web.log || true
