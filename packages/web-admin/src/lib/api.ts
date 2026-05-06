@@ -100,7 +100,7 @@ function extractError(parsed: unknown): { message: string; code?: string; detail
     typeof parsed === "object" &&
     parsed !== null &&
     "error" in parsed &&
-    typeof (parsed as { error: unknown }).error === "object"
+    typeof (parsed).error === "object"
   ) {
     const err = (parsed as { error: Record<string, unknown> }).error;
     const message = typeof err["message"] === "string" ? err["message"] : "Request failed";

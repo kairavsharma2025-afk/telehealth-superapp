@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { ZodError, type ZodSchema } from "zod";
+import { type ZodError, type ZodSchema } from "zod";
 import { ServiceError } from "@telehealth/shared";
 
 export function asyncHandler<T extends Request, R extends Response>(

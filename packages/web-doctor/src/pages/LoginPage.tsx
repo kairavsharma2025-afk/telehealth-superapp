@@ -35,7 +35,7 @@ export function LoginPage() {
 
   return (
     <div className="centered">
-      <form className="card" onSubmit={onSubmit}>
+      <form className="card" onSubmit={(e) => void onSubmit(e)}>
         <h1>Doctor sign-in</h1>
         <label>
           Email

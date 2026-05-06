@@ -211,7 +211,7 @@ function isUuid(value: string): boolean {
 
 function mapPgError(err: unknown): unknown {
   if (typeof err === "object" && err !== null && "code" in err) {
-    const code = (err as { code: unknown }).code;
+    const code = (err).code;
     if (code === "23P01") {
       return new ServiceError("CONFLICT", "Doctor already has an overlapping appointment");
     }

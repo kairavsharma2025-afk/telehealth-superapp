@@ -14,7 +14,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
         <div className="card">
           <h1>Admin only</h1>
           <p className="muted">
-            This console is admin-only. You're signed in as {user.role}.
+            This console is admin-only. You&apos;re signed in as {user.role}.
           </p>
         </div>
       </div>

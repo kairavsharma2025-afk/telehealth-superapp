@@ -18,8 +18,8 @@ interface LoginResponse {
 
 interface AuthContextValue {
   user: StoredUser | null;
-  login(email: string, password: string): Promise<void>;
-  logout(): void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);

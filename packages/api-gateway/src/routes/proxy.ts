@@ -8,6 +8,9 @@ interface BuildProxyOpts {
 }
 
 export function buildProxy({ prefix, target }: BuildProxyOpts): RequestHandler {
+  // http-proxy-middleware v3's handler is typed as Promise-returning, but
+  // Express accepts it directly. Tsc agrees; ESLint's typed lint doesn't.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   return createProxyMiddleware({
     target,
     changeOrigin: true,
@@ -18,5 +21,5 @@ export function buildProxy({ prefix, target }: BuildProxyOpts): RequestHandler {
         if (id) proxyReq.setHeader("x-request-id", id);
       },
     },
-  }) as unknown as RequestHandler;
+  });
 }

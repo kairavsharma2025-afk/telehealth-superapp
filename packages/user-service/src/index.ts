@@ -12,7 +12,7 @@ async function main() {
   const shutdown = (signal: string) => {
     console.log(`[user-service] ${signal} — shutting down`);
     server.close(() => {
-      pool.end().finally(() => process.exit(0));
+      void pool.end().finally(() => process.exit(0));
     });
   };
   process.on("SIGINT", () => shutdown("SIGINT"));

@@ -2,6 +2,7 @@
   "name": "telehealth-superapp",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "AI TeleHealth Super App — production-grade SaaS (learning project)",
   "engines": {
     "node": ">=20.0.0"
@@ -30,10 +31,19 @@
     "db:mongo": "docker compose exec mongo mongosh -u telehealth -p telehealth_dev_pw --authenticationDatabase admin",
     "db:seed": "npm -w @telehealth/seed run seed",
     "db:backup": "bash scripts/backup.sh",
-    "db:restore": "bash scripts/restore.sh"
+    "db:restore": "bash scripts/restore.sh",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc -b packages/shared && npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.11.0",
     "rimraf": "^5.0.10",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.12.2"
   }
 }

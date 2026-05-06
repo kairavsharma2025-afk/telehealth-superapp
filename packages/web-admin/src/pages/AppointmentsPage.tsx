@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "../lib/api";
+import { api, type ApiError } from "../lib/api";
 
 interface Appointment {
   id: string;

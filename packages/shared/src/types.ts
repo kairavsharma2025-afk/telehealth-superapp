@@ -1,6 +1,8 @@
+import type { UserRole } from "./roles.js";
+
 export interface JwtPayload {
   sub: string;
-  role: import("./roles.js").UserRole;
+  role: UserRole;
   iat: number;
   exp: number;
 }
