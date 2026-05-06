@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 
 export const pool = new Pool({
   connectionString: config.databaseUrl,
@@ -8,7 +9,7 @@ export const pool = new Pool({
 });
 
 pool.on("error", (err) => {
-  console.error("[db] idle client error", err);
+  logger.error({ err }, "idle client error");
 });
 
 export async function pingDb(): Promise<void> {

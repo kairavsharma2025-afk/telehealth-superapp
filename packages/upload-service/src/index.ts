@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { pool, pingDb } from "./db.js";
 import { ensureBucketExists } from "./lib/s3.js";
+import { logger } from "./logger.js";
 import { buildServer } from "./server.js";
 
 async function main() {
@@ -8,12 +9,19 @@ async function main() {
   await ensureBucketExists();
   const app = buildServer();
   const server = app.listen(config.port, () => {
-    console.log(`[upload-service] listening on :${config.port} (${config.nodeEnv})`);
-    console.log(`[upload-service] s3 bucket=${config.s3.bucket} endpoint=${config.s3.endpoint}`);
+    logger.info(
+      {
+        port: config.port,
+        env: config.nodeEnv,
+        s3Bucket: config.s3.bucket,
+        s3Endpoint: config.s3.endpoint,
+      },
+      "listening",
+    );
   });
 
   const shutdown = (signal: string) => {
-    console.log(`[upload-service] ${signal} — shutting down`);
+    logger.info({ signal }, "shutting down");
     server.close(() => {
       void pool.end().finally(() => process.exit(0));
     });
@@ -23,6 +31,6 @@ async function main() {
 }
 
 main().catch((err: unknown) => {
-  console.error("[upload-service] failed to start", err);
+  logger.fatal({ err }, "failed to start");
   process.exit(1);
 });

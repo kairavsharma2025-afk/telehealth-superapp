@@ -1,13 +1,16 @@
 import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
+import { httpLogger } from "@telehealth/shared";
 import { errorMiddleware } from "./lib/http.js";
+import { logger } from "./logger.js";
 import { healthRouter } from "./routes/health.js";
 import { notificationsRouter } from "./routes/notifications.js";
 
 export function buildServer(): Express {
   const app = express();
   app.disable("x-powered-by");
+  app.use(httpLogger(logger));
   app.use(helmet());
   app.use(cors());
   app.use(express.json({ limit: "100kb" }));

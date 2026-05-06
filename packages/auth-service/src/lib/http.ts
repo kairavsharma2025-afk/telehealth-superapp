@@ -24,7 +24,7 @@ function flattenZod(err: ZodError) {
 
 export function errorMiddleware(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ): void {
@@ -32,6 +32,6 @@ export function errorMiddleware(
     res.status(err.status).json(err.toJSON());
     return;
   }
-  console.error("[unhandled]", err);
+  req.log.error({ err }, "unhandled error");
   res.status(500).json({ error: { code: "INTERNAL", message: "Internal server error" } });
 }

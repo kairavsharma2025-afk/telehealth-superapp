@@ -11,6 +11,6 @@ export function errorMiddleware(
     res.status(err.status).json(err.toJSON());
     return;
   }
-  console.error("[gateway:unhandled]", { requestId: req.requestId, err });
+  req.log.error({ err }, "unhandled error");
   res.status(500).json({ error: { code: "INTERNAL", message: "Internal server error" } });
 }

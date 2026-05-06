@@ -17,8 +17,10 @@ export function buildProxy({ prefix, target }: BuildProxyOpts): RequestHandler {
     pathFilter: (path) => path === prefix || path.startsWith(`${prefix}/`),
     on: {
       proxyReq: (proxyReq, req: IncomingMessage) => {
-        const id = (req as IncomingMessage & { requestId?: string }).requestId;
-        if (id) proxyReq.setHeader("x-request-id", id);
+        // pino-http stores the request id at req.id; forward it so the
+        // upstream service's logs share the same correlation id.
+        const id = (req as IncomingMessage & { id?: string | number }).id;
+        if (typeof id === "string") proxyReq.setHeader("x-request-id", id);
       },
     },
   });

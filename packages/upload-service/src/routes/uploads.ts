@@ -170,7 +170,7 @@ uploadsRouter.delete(
       try {
         await deleteObject(row.object_key);
       } catch (err) {
-        console.warn("[uploads] s3 delete failed (continuing to soft-delete row)", err);
+        req.log.warn({ err }, "s3 delete failed; continuing to soft-delete row");
       }
       await pool.query(`UPDATE uploads SET status = 'deleted' WHERE id = $1`, [id]);
     }

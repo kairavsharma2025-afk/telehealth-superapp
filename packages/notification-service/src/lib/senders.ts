@@ -1,5 +1,6 @@
 import { ServiceError } from "@telehealth/shared";
 import { config } from "../config.js";
+import { logger } from "../logger.js";
 import type { Channel } from "./validation.js";
 
 export interface Recipient {
@@ -34,9 +35,7 @@ async function sendEmail(
 ): Promise<void> {
   if (!to.email) throw new ServiceError("BAD_REQUEST", "Recipient has no email on file");
   if (!config.providers.sesFromEmail) {
-    console.log(
-      `[notify:email:stub] to=${to.email} template=${template} payload=${JSON.stringify(payload)}`,
-    );
+    logger.info({ channel: "email", to: to.email, template, payload }, "stub send");
     return;
   }
   // Phase 7 will wire @aws-sdk/client-sesv2 here.
@@ -50,9 +49,7 @@ async function sendSms(
 ): Promise<void> {
   if (!to.phone) throw new ServiceError("BAD_REQUEST", "Recipient has no phone on file");
   if (!config.providers.twilioAccountSid) {
-    console.log(
-      `[notify:sms:stub] to=${to.phone} template=${template} payload=${JSON.stringify(payload)}`,
-    );
+    logger.info({ channel: "sms", to: to.phone, template, payload }, "stub send");
     return;
   }
   throw new Error("Twilio provider not yet implemented");
@@ -64,9 +61,7 @@ async function sendPush(
   payload: Record<string, unknown>,
 ): Promise<void> {
   if (!config.providers.fcmServerKey) {
-    console.log(
-      `[notify:push:stub] to=${to.userId} template=${template} payload=${JSON.stringify(payload)}`,
-    );
+    logger.info({ channel: "push", to: to.userId, template, payload }, "stub send");
     return;
   }
   throw new Error("FCM provider not yet implemented");

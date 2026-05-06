@@ -10,6 +10,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config.js";
+import { logger } from "../logger.js";
 
 const internalConfig: S3ClientConfig = {
   endpoint: config.s3.endpoint,
@@ -38,7 +39,7 @@ export async function ensureBucketExists(): Promise<void> {
   } catch (err: unknown) {
     if (isNotFound(err)) {
       await internalClient.send(new CreateBucketCommand({ Bucket: config.s3.bucket }));
-      console.log(`[s3] created bucket ${config.s3.bucket}`);
+      logger.info({ bucket: config.s3.bucket }, "created bucket");
       return;
     }
     throw err;

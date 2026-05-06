@@ -1,16 +1,17 @@
 import { config } from "./config.js";
 import { pool, pingDb } from "./db.js";
+import { logger } from "./logger.js";
 import { buildServer } from "./server.js";
 
 async function main() {
   await pingDb();
   const app = buildServer();
   const server = app.listen(config.port, () => {
-    console.log(`[auth-service] listening on :${config.port} (${config.nodeEnv})`);
+    logger.info({ port: config.port, env: config.nodeEnv }, "listening");
   });
 
   const shutdown = (signal: string) => {
-    console.log(`[auth-service] ${signal} — shutting down`);
+    logger.info({ signal }, "shutting down");
     server.close(() => {
       void pool.end().finally(() => process.exit(0));
     });
@@ -20,6 +21,6 @@ async function main() {
 }
 
 main().catch((err: unknown) => {
-  console.error("[auth-service] failed to start", err);
+  logger.fatal({ err }, "failed to start");
   process.exit(1);
 });
