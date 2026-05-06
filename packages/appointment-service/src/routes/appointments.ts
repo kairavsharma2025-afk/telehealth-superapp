@@ -89,8 +89,15 @@ appointmentsRouter.get(
       throw new ServiceError("VALIDATION_FAILED", "Invalid query string");
     }
 
-    const filters: string[] = ["(patient_id = $1 OR doctor_id = $1)"];
-    const params: unknown[] = [req.auth.userId];
+    const filters: string[] = [];
+    const params: unknown[] = [];
+
+    // Admins see every appointment; everyone else is scoped to rows they
+    // are part of (as patient OR doctor).
+    if (req.auth.role !== "admin") {
+      params.push(req.auth.userId);
+      filters.push(`(patient_id = $${params.length} OR doctor_id = $${params.length})`);
+    }
 
     if (query.data.status) {
       params.push(query.data.status);
@@ -105,9 +112,10 @@ appointmentsRouter.get(
       filters.push(`start_at < $${params.length}`);
     }
 
+    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
     const result = await pool.query<AppointmentRow>(
       `SELECT ${SELECT_COLUMNS} FROM appointments
-        WHERE ${filters.join(" AND ")}
+        ${where}
         ORDER BY start_at DESC
         LIMIT 100`,
       params,
@@ -130,7 +138,11 @@ appointmentsRouter.get(
     );
     const row = result.rows[0];
     if (!row) throw new ServiceError("NOT_FOUND", "Appointment not found");
-    if (row.patient_id !== req.auth.userId && row.doctor_id !== req.auth.userId) {
+    if (
+      req.auth.role !== "admin" &&
+      row.patient_id !== req.auth.userId &&
+      row.doctor_id !== req.auth.userId
+    ) {
       throw new ServiceError("FORBIDDEN", "Not your appointment");
     }
     res.json(toApi(row));
@@ -159,7 +171,8 @@ appointmentsRouter.patch(
       }
       const isPatient = row.patient_id === req.auth.userId;
       const isDoctor = row.doctor_id === req.auth.userId;
-      if (!isPatient && !isDoctor) {
+      const isAdmin = req.auth.role === "admin";
+      if (!isPatient && !isDoctor && !isAdmin) {
         await client.query("ROLLBACK");
         throw new ServiceError("FORBIDDEN", "Not your appointment");
       }

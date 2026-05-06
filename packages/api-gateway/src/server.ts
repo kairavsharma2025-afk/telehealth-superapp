@@ -2,7 +2,7 @@ import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import { config } from "./config.js";
-import { requireAuth } from "./middleware/auth.js";
+import { requireAuth, requireRole } from "./middleware/auth.js";
 import { errorMiddleware } from "./middleware/errors.js";
 import { requestIdMiddleware } from "./middleware/requestId.js";
 import { healthRouter } from "./routes/health.js";
@@ -22,6 +22,9 @@ export function buildServer(): Express {
   });
 
   app.use(buildProxy({ prefix: "/auth", target: config.upstreams.auth }));
+
+  app.use("/admin", requireAuth, requireRole("admin"));
+  app.use(buildProxy({ prefix: "/admin", target: config.upstreams.auth }));
 
   app.use("/users", requireAuth);
   app.use(buildProxy({ prefix: "/users", target: config.upstreams.user }));

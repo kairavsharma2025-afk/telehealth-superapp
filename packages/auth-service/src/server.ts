@@ -2,6 +2,7 @@ import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import { errorMiddleware } from "./lib/http.js";
+import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -14,6 +15,7 @@ export function buildServer(): Express {
 
   app.use(healthRouter);
   app.use("/auth", authRouter);
+  app.use("/admin", adminRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });

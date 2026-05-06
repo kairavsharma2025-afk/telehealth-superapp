@@ -87,7 +87,7 @@ uploadsRouter.post(
     const id = req.params["id"];
     if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
 
-    const owned = await fetchOwned(id, req.auth.userId);
+    const owned = await fetchOwned(id, req.auth.userId, req.auth.role);
     if (owned.status === "uploaded") {
       res.json(toApi(owned));
       return;
@@ -121,13 +121,17 @@ uploadsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     if (!req.auth) throw new ServiceError("UNAUTHORIZED", "Auth context missing");
-    const result = await pool.query<UploadRow>(
-      `SELECT ${SELECT_COLUMNS} FROM uploads
-        WHERE owner_user_id = $1 AND status <> 'deleted'
-        ORDER BY created_at DESC
-        LIMIT 100`,
-      [req.auth.userId],
-    );
+    // Admins see every (non-deleted) upload; everyone else sees only their own.
+    const sql =
+      req.auth.role === "admin"
+        ? `SELECT ${SELECT_COLUMNS} FROM uploads
+            WHERE status <> 'deleted'
+            ORDER BY created_at DESC LIMIT 100`
+        : `SELECT ${SELECT_COLUMNS} FROM uploads
+            WHERE owner_user_id = $1 AND status <> 'deleted'
+            ORDER BY created_at DESC LIMIT 100`;
+    const params = req.auth.role === "admin" ? [] : [req.auth.userId];
+    const result = await pool.query<UploadRow>(sql, params);
     res.json({ items: result.rows.map(toApi) });
   }),
 );
@@ -139,7 +143,7 @@ uploadsRouter.get(
     const id = req.params["id"];
     if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
 
-    const row = await fetchOwned(id, req.auth.userId);
+    const row = await fetchOwned(id, req.auth.userId, req.auth.role);
     if (row.status === "deleted") throw new ServiceError("NOT_FOUND", "Upload not found");
     if (row.status !== "uploaded") {
       res.json({ ...toApi(row), downloadUrl: null });
@@ -161,7 +165,7 @@ uploadsRouter.delete(
     const id = req.params["id"];
     if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
 
-    const row = await fetchOwned(id, req.auth.userId);
+    const row = await fetchOwned(id, req.auth.userId, req.auth.role);
     if (row.status !== "deleted") {
       try {
         await deleteObject(row.object_key);
@@ -174,14 +178,20 @@ uploadsRouter.delete(
   }),
 );
 
-async function fetchOwned(id: string, userId: string): Promise<UploadRow> {
+async function fetchOwned(
+  id: string,
+  userId: string,
+  role: "patient" | "doctor" | "admin",
+): Promise<UploadRow> {
   const result = await pool.query<UploadRow>(
     `SELECT ${SELECT_COLUMNS} FROM uploads WHERE id = $1`,
     [id],
   );
   const row = result.rows[0];
   if (!row) throw new ServiceError("NOT_FOUND", "Upload not found");
-  if (row.owner_user_id !== userId) throw new ServiceError("FORBIDDEN", "Not your upload");
+  if (role !== "admin" && row.owner_user_id !== userId) {
+    throw new ServiceError("FORBIDDEN", "Not your upload");
+  }
   return row;
 }
 
