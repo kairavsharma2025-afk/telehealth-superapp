@@ -1,14 +1,15 @@
 # =====================================================================
 # TELEHEALTH SUPERAPP — local development stack
 #
-# Phase 2: only databases live here. We will add the 6 Node services
-# in Phase 3, and a single nginx reverse proxy in Phase 7.
+# Phase 2: databases. Phase 3: MinIO (S3-compatible) for upload-service.
+# Node services run on the host via npm workspaces, not in compose yet.
+# A single nginx reverse proxy joins in Phase 7.
 #
 # Usage:
-#   docker compose up -d           # start in background
+#   npm run infra:up               # start postgres + mongo + minio
+#   npm run infra:down             # stop everything
 #   docker compose ps              # see status
 #   docker compose logs -f mongo   # tail logs
-#   docker compose down            # stop (data persists in named volumes)
 #   docker compose down -v         # stop AND wipe data (destructive)
 # =====================================================================
 
@@ -68,6 +69,32 @@ services:
     networks:
       - telehealth-net
 
+  # -------------------------------------------------------------------
+  # MinIO — S3-compatible object store for upload-service (Phase 3).
+  # Phase 7 swaps this out for real AWS S3; the upload-service code
+  # stays the same — only the endpoint env var flips.
+  # -------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: telehealth-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+    ports:
+      - "127.0.0.1:9000:9000"  # S3 API
+      - "127.0.0.1:9001:9001"  # web console (http://localhost:9001)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - telehealth-net
+
 # -------------------------------------------------------------------
 # Named volumes — Docker manages where these live on disk.
 # Survives `docker compose down`. Wiped only on `down -v`.
@@ -77,6 +104,8 @@ volumes:
     name: telehealth_postgres_data
   mongo_data:
     name: telehealth_mongo_data
+  minio_data:
+    name: telehealth_minio_data
 
 # -------------------------------------------------------------------
 # Custom network — services talk to each other by service name

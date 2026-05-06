@@ -19,6 +19,9 @@
     "packages/mobile-patient"
   ],
   "scripts": {
+    "infra:up": "docker compose up -d postgres mongo minio",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f postgres mongo minio",
     "db:up": "docker compose up -d postgres mongo",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres mongo",
