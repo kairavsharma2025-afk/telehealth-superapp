@@ -6,6 +6,7 @@ import { errorMiddleware } from "./lib/http.js";
 import { logger } from "./logger.js";
 import { healthRouter } from "./routes/health.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { pushTokensRouter } from "./routes/push-tokens.js";
 
 export function buildServer(): Express {
   const app = express();
@@ -19,6 +20,10 @@ export function buildServer(): Express {
 
   app.use(healthRouter);
   app.use(metrics.router);
+  // Order matters: push-tokens mounts at /notifications/push-tokens; the
+  // catch-all /notifications router has /:id which would otherwise swallow
+  // GET /notifications/push-tokens as a UUID lookup.
+  app.use("/notifications/push-tokens", pushTokensRouter);
   app.use("/notifications", notificationsRouter);
 
   app.use((_req, res) => {

@@ -10,11 +10,13 @@ import { AppointmentsScreen } from "./src/screens/AppointmentsScreen";
 import { BookScreen } from "./src/screens/BookScreen";
 import { DocumentsScreen } from "./src/screens/DocumentsScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
+import { NotificationsScreen } from "./src/screens/NotificationsScreen";
 
 export type MainTabParamList = {
   Appointments: undefined;
   Book: undefined;
   Documents: undefined;
+  Notifications: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -44,6 +46,11 @@ function MainTabs() {
       <Tab.Screen
         name="Documents"
         component={DocumentsScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
         options={{ headerShown: false }}
       />
     </Tab.Navigator>
