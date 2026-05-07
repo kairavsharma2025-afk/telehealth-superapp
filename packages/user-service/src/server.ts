@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { createMetrics, httpLogger } from "@telehealth/shared";
 import { errorMiddleware } from "./lib/http.js";
 import { logger } from "./logger.js";
+import { doctorsRouter } from "./routes/doctors.js";
 import { healthRouter } from "./routes/health.js";
 import { meRouter } from "./routes/me.js";
 
@@ -20,6 +21,7 @@ export function buildServer(): Express {
   app.use(healthRouter);
   app.use(metrics.router);
   app.use("/users/me", meRouter);
+  app.use("/users/doctors", doctorsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });

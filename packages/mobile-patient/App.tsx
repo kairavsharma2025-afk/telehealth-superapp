@@ -1,44 +1,51 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/lib/auth";
 import { tokenStore } from "./src/lib/tokenStore";
 import { AppointmentsScreen } from "./src/screens/AppointmentsScreen";
+import { BookScreen } from "./src/screens/BookScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 
-export type RootStackParamList = {
-  Login: undefined;
+export type MainTabParamList = {
   Appointments: undefined;
+  Book: undefined;
 };
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
 });
 
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: "#0f172a" },
+        headerTitleStyle: { color: "#f8fafc" },
+        headerShadowVisible: false,
+        tabBarStyle: { backgroundColor: "#0f172a", borderTopColor: "#1e293b" },
+        tabBarActiveTintColor: "#60a5fa",
+        tabBarInactiveTintColor: "#64748b",
+      }}
+    >
+      <Tab.Screen
+        name="Appointments"
+        component={AppointmentsScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen name="Book" component={BookScreen} />
+    </Tab.Navigator>
+  );
+}
+
 function RootNavigator() {
   const { user } = useAuth();
-  return (
-    <Stack.Navigator>
-      {user ? (
-        <Stack.Screen
-          name="Appointments"
-          component={AppointmentsScreen}
-          options={{ headerShown: false }}
-        />
-      ) : (
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
-      )}
-    </Stack.Navigator>
-  );
+  return user ? <MainTabs /> : <LoginScreen />;
 }
 
 export default function App() {
