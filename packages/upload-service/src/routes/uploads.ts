@@ -21,6 +21,7 @@ interface UploadRow {
   content_type: string;
   size_bytes: string;
   status: UploadStatus;
+  category: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -34,13 +35,14 @@ function toApi(row: UploadRow) {
     contentType: row.content_type,
     sizeBytes: Number(row.size_bytes),
     status: row.status,
+    category: row.category,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
 const SELECT_COLUMNS =
-  "id, owner_user_id, object_key, filename, content_type, size_bytes, status, created_at, updated_at";
+  "id, owner_user_id, object_key, filename, content_type, size_bytes, status, category, created_at, updated_at";
 
 uploadsRouter.post(
   "/",
@@ -57,17 +59,24 @@ uploadsRouter.post(
 
     const inserted = await pool.query<UploadRow>(
       `WITH new_id AS (SELECT gen_random_uuid() AS id)
-       INSERT INTO uploads (id, owner_user_id, object_key, filename, content_type, size_bytes)
+       INSERT INTO uploads (id, owner_user_id, object_key, filename, content_type, size_bytes, category)
        SELECT
          new_id.id,
          $1::uuid,
          'uploads/' || $1::text || '/' || new_id.id::text,
          $2,
          $3,
-         $4
+         $4,
+         $5
        FROM new_id
        RETURNING ${SELECT_COLUMNS}`,
-      [req.auth.userId, input.filename, input.contentType, input.sizeBytes],
+      [
+        req.auth.userId,
+        input.filename,
+        input.contentType,
+        input.sizeBytes,
+        input.category ?? null,
+      ],
     );
     const row = inserted.rows[0];
     if (!row) throw new ServiceError("INTERNAL", "Insert returned no row");
