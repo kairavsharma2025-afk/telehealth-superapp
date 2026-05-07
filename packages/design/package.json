@@ -1,0 +1,16 @@
+{
+  "name": "@telehealth/design",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vela Health design tokens, brand assets, and primitives shared across web + mobile.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens": "./src/tokens.ts",
+    "./brand": "./src/brand.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "files": ["src"]
+}
