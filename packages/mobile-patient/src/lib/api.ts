@@ -22,7 +22,13 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = process.env["EXPO_PUBLIC_API_BASE"] ?? "http://localhost:4000";
+// Cast: in the RN/Expo build context the typed-lint setup can't see
+// @types/node because Expo's tsconfig.base uses moduleResolution=bundler.
+// The value is a string literal at bundle time (Expo statically inlines
+// EXPO_PUBLIC_*), so the cast is purely a type-system formality.
+const API_BASE: string =
+  (process.env["EXPO_PUBLIC_API_BASE"] as string | undefined) ??
+  "http://localhost:4000";
 
 interface FetchOptions {
   method?: string;

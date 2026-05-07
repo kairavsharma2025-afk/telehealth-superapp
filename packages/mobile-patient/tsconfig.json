@@ -9,7 +9,13 @@
     "useUnknownInCatchVariables": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // npm workspaces hoists @types/react@18 to the repo root for the
+    // web-* packages; this workspace pins React 19 locally. typeRoots
+    // alone doesn't sandbox enough — `types: []` disables the auto-
+    // include sweep so types only enter the program via explicit
+    // imports, which resolve to the local copies.
+    "types": ["node"]
   },
   "include": ["index.ts", "App.tsx", "src/**/*"],
   "exclude": ["node_modules", ".expo", "dist"]

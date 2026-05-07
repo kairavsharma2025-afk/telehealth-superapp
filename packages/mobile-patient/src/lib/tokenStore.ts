@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 // Mobile equivalent of web-doctor/web-admin's tokenStore. Three differences:
@@ -10,6 +11,37 @@ import * as SecureStore from "expo-secure-store";
 //     even when there's a valid stored session.
 //  3. setSession / clear are async — callers must await for the persisted
 //     state to be durable (e.g. before navigating away after sign-in).
+//
+// Web platform: expo-secure-store ships an empty stub on web (Keychain and
+// Keystore don't exist in browsers), so we route to localStorage instead.
+// Same async surface, same in-memory cache — only the persistence backend
+// differs. Same-origin storage is "secure enough" for a dev-only browser
+// preview; production should run on the actual mobile platforms.
+
+const isWeb = Platform.OS === "web";
+
+const storage = {
+  async getItem(key: string): Promise<string | null> {
+    if (isWeb) {
+      return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+    }
+    return SecureStore.getItemAsync(key);
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (isWeb) {
+      if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  },
+  async deleteItem(key: string): Promise<void> {
+    if (isWeb) {
+      if (typeof localStorage !== "undefined") localStorage.removeItem(key);
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  },
+};
 
 const ACCESS_KEY = "telehealth_access_token";
 const REFRESH_KEY = "telehealth_refresh_token";
@@ -55,9 +87,9 @@ export const tokenStore = {
     if (!initPromise) {
       initPromise = (async () => {
         const [a, r, u] = await Promise.all([
-          SecureStore.getItemAsync(ACCESS_KEY),
-          SecureStore.getItemAsync(REFRESH_KEY),
-          SecureStore.getItemAsync(USER_KEY),
+          storage.getItem(ACCESS_KEY),
+          storage.getItem(REFRESH_KEY),
+          storage.getItem(USER_KEY),
         ]);
         accessToken = a;
         refreshToken = r;
@@ -79,14 +111,14 @@ export const tokenStore = {
   },
   async setSession(next: SessionUpdate): Promise<void> {
     accessToken = next.accessToken;
-    await SecureStore.setItemAsync(ACCESS_KEY, next.accessToken);
+    await storage.setItem(ACCESS_KEY, next.accessToken);
     if (next.refreshToken !== undefined) {
       refreshToken = next.refreshToken;
-      await SecureStore.setItemAsync(REFRESH_KEY, next.refreshToken);
+      await storage.setItem(REFRESH_KEY, next.refreshToken);
     }
     if (next.user !== undefined) {
       user = next.user;
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(next.user));
+      await storage.setItem(USER_KEY, JSON.stringify(next.user));
     }
     notify();
   },
@@ -96,9 +128,9 @@ export const tokenStore = {
     user = null;
     notify();
     await Promise.all([
-      SecureStore.deleteItemAsync(ACCESS_KEY),
-      SecureStore.deleteItemAsync(REFRESH_KEY),
-      SecureStore.deleteItemAsync(USER_KEY),
+      storage.deleteItem(ACCESS_KEY),
+      storage.deleteItem(REFRESH_KEY),
+      storage.deleteItem(USER_KEY),
     ]);
   },
   subscribe(fn: Listener): () => void {
