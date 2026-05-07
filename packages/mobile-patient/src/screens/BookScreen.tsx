@@ -1,4 +1,4 @@
-import { createElement, useCallback, useState } from "react";
+import { createElement, useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -93,6 +93,38 @@ function defaultWindowEnd(start: Date): Date {
   return d;
 }
 
+// Quick-pick shortcuts — common windows the patient probably wants
+// rather than dialing in two datetime inputs.
+type Shortcut = "today" | "tomorrow" | "this-week";
+
+function shortcutWindow(s: Shortcut): { start: Date; end: Date } {
+  const start = nextRoundedHour();
+  switch (s) {
+    case "today": {
+      const end = new Date(start);
+      end.setHours(23, 0, 0, 0);
+      return { start, end };
+    }
+    case "tomorrow": {
+      const ts = new Date();
+      ts.setDate(ts.getDate() + 1);
+      ts.setHours(9, 0, 0, 0);
+      const te = new Date(ts);
+      te.setHours(17, 0, 0, 0);
+      return { start: ts, end: te };
+    }
+    case "this-week": {
+      const end = new Date();
+      // Next Sunday at end of day. getDay(): Sunday=0; we want days
+      // remaining until Sunday (inclusive of today).
+      const daysUntilSunday = (7 - end.getDay()) % 7;
+      end.setDate(end.getDate() + (daysUntilSunday || 7));
+      end.setHours(23, 0, 0, 0);
+      return { start, end };
+    }
+  }
+}
+
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
   month: "short",
@@ -122,24 +154,23 @@ export function BookScreen() {
   const [reason, setReason] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [nameQuery, setNameQuery] = useState("");
+  const [pageSize, setPageSize] = useState(20);
 
-  // Search key — incremented when the user hits "Find availability".
-  // Driving the query off this rather than the form fields keeps results
-  // stable while they tweak the window, and avoids spamming the backend
-  // on every keystroke in the web datetime input.
-  const [searchKey, setSearchKey] = useState(0);
-
+  // Auto-refetch as the patient tweaks the window, specialty, or
+  // duration. The form fields drive the query directly — no manual
+  // search button. Each filter change is a discrete user action
+  // (specialty pill tap, duration toggle, datetime picker close), so
+  // we don't need debouncing — the request fires once per change.
   const availability = useQuery<AvailabilityResult, ApiError>({
     queryKey: [
       "availability",
-      searchKey,
       windowStart.toISOString(),
       windowEnd.toISOString(),
       specialty,
       duration,
     ],
     queryFn: () => fetchAvailability({ windowStart, windowEnd, specialty, duration }),
-    enabled: searchKey > 0,
   });
 
   const onPickerChange = useCallback(
@@ -177,6 +208,7 @@ export function BookScreen() {
       );
       setReason("");
       setDoctor(null);
+      setNameQuery("");
       void qc.invalidateQueries({ queryKey: ["appointments"] });
       void qc.invalidateQueries({ queryKey: ["availability"] });
     },
@@ -186,7 +218,24 @@ export function BookScreen() {
     },
   });
 
-  const items = availability.data?.items ?? [];
+  const allItems = availability.data?.items ?? [];
+
+  // Client-side filter on doctor name. Trim + lowercase comparison;
+  // matching against the rendered display name so "dr smith" works as
+  // well as "smith".
+  const items = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    if (!q) return allItems;
+    return allItems.filter((d) => {
+      const haystack = (d.fullName ?? "")
+        .toLowerCase()
+        .concat(" doctor #", d.id.slice(0, 8));
+      return haystack.includes(q);
+    });
+  }, [allItems, nameQuery]);
+
+  const visibleItems = items.slice(0, pageSize);
+  const hasMore = items.length > visibleItems.length;
 
   return (
     <ScrollView
@@ -201,6 +250,32 @@ export function BookScreen() {
       </Text>
 
       <Text style={styles.sectionLabel}>Your availability window</Text>
+      <View style={styles.shortcutsRow}>
+        <ShortcutChip
+          label="Today"
+          onPress={() => {
+            const w = shortcutWindow("today");
+            setWindowStart(w.start);
+            setWindowEnd(w.end);
+          }}
+        />
+        <ShortcutChip
+          label="Tomorrow"
+          onPress={() => {
+            const w = shortcutWindow("tomorrow");
+            setWindowStart(w.start);
+            setWindowEnd(w.end);
+          }}
+        />
+        <ShortcutChip
+          label="This week"
+          onPress={() => {
+            const w = shortcutWindow("this-week");
+            setWindowStart(w.start);
+            setWindowEnd(w.end);
+          }}
+        />
+      </View>
       <View style={styles.row}>
         <DateTimeField
           label="Earliest"
@@ -271,76 +346,123 @@ export function BookScreen() {
         ))}
       </ScrollView>
 
-      <TouchableOpacity
-        style={[styles.searchBtn, availability.isFetching && styles.searchBtnBusy]}
-        onPress={() => {
-          setDoctor(null);
-          setSuccess(null);
-          setSubmitError(null);
-          setSearchKey((k) => k + 1);
-        }}
-        disabled={availability.isFetching}
-      >
-        {availability.isFetching ? (
-          <ActivityIndicator color={palette.white} />
-        ) : (
-          <Text style={styles.searchBtnText}>
-            {searchKey === 0 ? "Find available doctors" : "Refresh results"}
-          </Text>
-        )}
-      </TouchableOpacity>
-
       {availability.isError ? (
         <Text style={styles.errorMsg}>{availability.error.message}</Text>
       ) : null}
 
-      {searchKey > 0 && !availability.isFetching && !availability.isError ? (
-        <View style={styles.resultsHeader}>
-          <Text style={styles.resultsCount}>
-            {items.length} {items.length === 1 ? "doctor" : "doctors"} available
-          </Text>
-          <Text style={styles.resultsHint}>
-            Sorted by earliest slot in your window
-          </Text>
+      {availability.isPending ? (
+        <View style={styles.inlineLoader}>
+          <ActivityIndicator color={palette.brand700} />
         </View>
       ) : null}
 
-      {searchKey > 0 && !availability.isFetching && items.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Nothing fits in that window</Text>
-          <Text style={styles.emptyDesc}>
-            Try a wider window, a different specialty, or a shorter duration.
-          </Text>
-        </View>
-      ) : null}
+      {!availability.isPending && !availability.isError ? (
+        <>
+          <View style={styles.resultsHeader}>
+            <Text style={styles.resultsCount}>
+              {availability.isFetching
+                ? "Updating…"
+                : `${allItems.length} ${allItems.length === 1 ? "doctor" : "doctors"} available`}
+            </Text>
+            <Text style={styles.resultsHint}>
+              Sorted by earliest slot in your window
+            </Text>
+          </View>
 
-      {items.slice(0, 30).map((d) => {
-        const selected = d.id === doctor?.id;
-        const start = new Date(d.suggestedStartAt);
-        const end = new Date(d.suggestedEndAt);
-        return (
-          <TouchableOpacity
-            key={d.id}
-            style={[styles.docCard, selected && styles.docCardSelected]}
-            onPress={() => setDoctor(d)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.docMain}>
-              <Text style={styles.docName}>
-                {d.fullName ?? "Unnamed doctor"}
-              </Text>
-              <Text style={styles.docSpec}>{d.specialty ?? "—"}</Text>
+          {allItems.length > 0 ? (
+            <View style={styles.searchInputWrap}>
+              <Text style={styles.searchInputIcon}>🔍</Text>
+              <NativeOrWebTextInput
+                value={nameQuery}
+                onChangeText={(t) => {
+                  setNameQuery(t);
+                  setPageSize(20);
+                }}
+                placeholder="Search by name"
+              />
+              {nameQuery ? (
+                <TouchableOpacity onPress={() => setNameQuery("")}>
+                  <Text style={styles.searchClear}>×</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
-            <View style={styles.docSlot}>
-              <Text style={styles.docSlotLabel}>Earliest slot</Text>
-              <Text style={styles.docSlotTime}>{dateFmt.format(start)}</Text>
-              <Text style={styles.docSlotRange}>
-                {timeFmt.format(start)} – {timeFmt.format(end)}
+          ) : null}
+
+          {allItems.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Nothing fits in that window</Text>
+              <Text style={styles.emptyDesc}>
+                Try a wider window, a different specialty, or a shorter duration.
               </Text>
             </View>
-          </TouchableOpacity>
-        );
-      })}
+          ) : items.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>No doctors match that name</Text>
+              <Text style={styles.emptyDesc}>Clear the search or try a different spelling.</Text>
+            </View>
+          ) : null}
+
+          {visibleItems.map((d) => {
+            const selected = d.id === doctor?.id;
+            const start = new Date(d.suggestedStartAt);
+            const end = new Date(d.suggestedEndAt);
+            const displayName = d.fullName
+              ? capitalizeWords(d.fullName)
+              : `Doctor #${d.id.slice(0, 8)}`;
+            return (
+              <View
+                key={d.id}
+                style={[styles.docCard, selected && styles.docCardSelected]}
+              >
+                <TouchableOpacity
+                  style={styles.docTop}
+                  onPress={() => setDoctor(d)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.docMain}>
+                    <Text style={styles.docName}>Dr. {displayName}</Text>
+                    <Text style={styles.docSpec}>{d.specialty ?? "—"}</Text>
+                  </View>
+                  <View style={styles.docSlot}>
+                    <Text style={styles.docSlotLabel}>Earliest slot</Text>
+                    <Text style={styles.docSlotTime}>{dateFmt.format(start)}</Text>
+                    <Text style={styles.docSlotRange}>
+                      {timeFmt.format(start)} – {timeFmt.format(end)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.bookCta,
+                    selected ? styles.bookCtaActive : styles.bookCtaInactive,
+                  ]}
+                  onPress={() => setDoctor(d)}
+                >
+                  <Text
+                    style={
+                      selected ? styles.bookCtaActiveText : styles.bookCtaInactiveText
+                    }
+                  >
+                    {selected ? "Selected — confirm below" : "Book this slot"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+
+          {hasMore ? (
+            <TouchableOpacity
+              style={styles.showMoreBtn}
+              onPress={() => setPageSize((n) => n + 20)}
+            >
+              <Text style={styles.showMoreText}>
+                Show {Math.min(20, items.length - visibleItems.length)} more (of{" "}
+                {items.length})
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
+      ) : null}
 
       {doctor ? (
         <View style={styles.confirmBox}>
@@ -455,6 +577,39 @@ function SpecialtyPill({
       </Text>
     </TouchableOpacity>
   );
+}
+
+function ShortcutChip({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.shortcutChip}>
+      <Text style={styles.shortcutChipText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function NativeOrWebTextInput(props: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <TextInput
+      value={props.value}
+      onChangeText={props.onChangeText}
+      placeholder={props.placeholder}
+      placeholderTextColor={semantic.textSubtle}
+      style={styles.searchInput}
+      autoCapitalize="none"
+      autoCorrect={false}
+    />
+  );
+}
+
+function capitalizeWords(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
 }
 
 function toLocalDatetimeString(d: Date): string {
@@ -574,17 +729,96 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
   },
 
-  searchBtn: {
-    backgroundColor: palette.brand700,
-    paddingVertical: 14,
-    borderRadius: radius.md,
-    alignItems: "center",
-    marginTop: space[5],
+  shortcutsRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: space[2],
   },
-  searchBtnBusy: { backgroundColor: palette.slate400 },
-  searchBtnText: {
+  shortcutChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: palette.brand50,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: palette.brand100,
+  },
+  shortcutChipText: {
+    color: palette.brand800,
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+  },
+  inlineLoader: {
+    paddingVertical: space[6],
+    alignItems: "center",
+  },
+  searchInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: semantic.surface,
+    borderColor: semantic.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: space[3],
+    marginTop: space[2],
+    marginBottom: space[2],
+    gap: space[2],
+  },
+  searchInputIcon: {
+    fontSize: 14,
+    color: semantic.textMuted,
+  },
+  searchInput: {
+    flex: 1,
+    color: semantic.text,
+    fontSize: 15,
+    paddingVertical: 10,
+  },
+  searchClear: {
+    color: semantic.textMuted,
+    fontSize: 22,
+    paddingHorizontal: 4,
+  },
+  docTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    padding: space[4],
+  },
+  bookCta: {
+    paddingVertical: 11,
+    alignItems: "center",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semantic.border,
+  },
+  bookCtaInactive: {
+    backgroundColor: semantic.surface,
+  },
+  bookCtaActive: {
+    backgroundColor: palette.brand700,
+    borderTopColor: palette.brand700,
+  },
+  bookCtaInactiveText: {
+    color: palette.brand700,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
+  bookCtaActiveText: {
     color: palette.white,
-    fontSize: 16,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
+  showMoreBtn: {
+    marginTop: space[3],
+    paddingVertical: space[3],
+    alignItems: "center",
+    backgroundColor: semantic.surface,
+    borderWidth: 1,
+    borderColor: semantic.border,
+    borderRadius: radius.md,
+  },
+  showMoreText: {
+    color: palette.brand700,
+    fontSize: 14,
     fontWeight: fontWeight.semibold,
   },
 
@@ -625,15 +859,12 @@ const styles = StyleSheet.create({
   },
 
   docCard: {
-    flexDirection: "row",
     backgroundColor: semantic.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: semantic.border,
-    padding: space[4],
-    gap: space[3],
     marginTop: space[2],
-    alignItems: "center",
+    overflow: "hidden",
   },
   docCardSelected: {
     backgroundColor: palette.brand50,
