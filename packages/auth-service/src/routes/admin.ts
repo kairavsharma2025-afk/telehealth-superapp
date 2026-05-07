@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { ServiceError, type UserRole } from "@telehealth/shared";
+import { audit } from "../audit.js";
 import { pool } from "../db.js";
 import { asyncHandler, parseBody } from "../lib/http.js";
 import { requireAdmin } from "../lib/admin.js";
@@ -99,6 +100,17 @@ adminRouter.patch(
     );
     const row = result.rows[0];
     if (!row) throw new ServiceError("NOT_FOUND", "User not found");
+
+    // Fire-and-forget — audit must never delay or fail the admin's
+    // request. createAuditLogger logs internal errors itself.
+    void audit.record({
+      service: "auth-service",
+      action: input.isActive ? "user.activate" : "user.deactivate",
+      actor: { userId: req.auth.userId, role: req.auth.role },
+      target: { type: "user", id: row.id },
+      details: { email: row.email, role: row.role },
+      requestId: typeof req.id === "string" ? req.id : undefined,
+    });
     res.json(toApi(row));
   }),
 );

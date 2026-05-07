@@ -7,3 +7,4 @@ export * from "./http-logger.js";
 export * from "./health.js";
 export * from "./metrics.js";
 export * from "./shutdown.js";
+export * from "./audit.js";

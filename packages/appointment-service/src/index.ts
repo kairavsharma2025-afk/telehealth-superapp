@@ -1,4 +1,5 @@
 import { closeServer, installShutdown } from "@telehealth/shared";
+import { audit } from "./audit.js";
 import { config } from "./config.js";
 import { pool, pingDb } from "./db.js";
 import { logger } from "./logger.js";
@@ -15,6 +16,7 @@ async function main() {
     logger,
     steps: [
       { name: "http-server", run: () => closeServer(server) },
+      { name: "audit-mongo", run: () => audit.close() },
       { name: "pg-pool", run: () => pool.end() },
     ],
   });

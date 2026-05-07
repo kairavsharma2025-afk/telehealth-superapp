@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { ServiceError } from "@telehealth/shared";
+import { audit } from "../audit.js";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -166,6 +167,8 @@ uploadsRouter.delete(
     if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
 
     const row = await fetchOwned(id, req.auth.userId, req.auth.role);
+    const isAdminOverride =
+      req.auth.role === "admin" && row.owner_user_id !== req.auth.userId;
     if (row.status !== "deleted") {
       try {
         await deleteObject(row.object_key);
@@ -173,6 +176,25 @@ uploadsRouter.delete(
         req.log.warn({ err }, "s3 delete failed; continuing to soft-delete row");
       }
       await pool.query(`UPDATE uploads SET status = 'deleted' WHERE id = $1`, [id]);
+
+      // Audit only when an admin deletes someone else's upload — owners
+      // deleting their own files is normal user-driven behaviour and is
+      // already implicit in the uploads table's status column.
+      if (isAdminOverride) {
+        void audit.record({
+          service: "upload-service",
+          action: "upload.admin-delete",
+          actor: { userId: req.auth.userId, role: req.auth.role },
+          target: { type: "upload", id: row.id },
+          details: {
+            ownerUserId: row.owner_user_id,
+            filename: row.filename,
+            objectKey: row.object_key,
+            sizeBytes: Number(row.size_bytes),
+          },
+          requestId: typeof req.id === "string" ? req.id : undefined,
+        });
+      }
     }
     res.status(204).end();
   }),

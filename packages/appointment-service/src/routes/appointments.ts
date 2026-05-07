@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { ServiceError, type UserRole } from "@telehealth/shared";
+import { audit } from "../audit.js";
 import { pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler, parseBody } from "../lib/http.js";
@@ -191,6 +192,25 @@ appointmentsRouter.patch(
       await client.query("COMMIT");
       const updatedRow = updated.rows[0];
       if (!updatedRow) throw new ServiceError("INTERNAL", "Update returned no row");
+
+      // Audit only admin-initiated transitions — patient/doctor actions
+      // are part of the normal appointment flow and are already captured
+      // by the appointments table's updated_at + status columns.
+      if (isAdmin) {
+        void audit.record({
+          service: "appointment-service",
+          action: "appointment.admin-transition",
+          actor: { userId: req.auth.userId, role: req.auth.role },
+          target: { type: "appointment", id: updatedRow.id },
+          details: {
+            from: row.status,
+            to: nextStatus,
+            patientId: updatedRow.patient_id,
+            doctorId: updatedRow.doctor_id,
+          },
+          requestId: typeof req.id === "string" ? req.id : undefined,
+        });
+      }
       res.json(toApi(updatedRow));
     } catch (err) {
       try {
