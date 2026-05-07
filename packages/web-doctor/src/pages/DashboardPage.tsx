@@ -1,128 +1,252 @@
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-
-interface Appointment {
-  id: string;
-  patientId: string;
-  doctorId: string;
-  startAt: string;
-  endAt: string;
-  status: "scheduled" | "confirmed" | "completed" | "cancelled";
-  reason: string | null;
-}
+import { Layout } from "../components/Layout";
+import {
+  AppointmentCard,
+  type Appointment,
+} from "../components/AppointmentCard";
+import { type AppointmentStatus } from "../components/StatusPill";
+import { EmptyState } from "../components/EmptyState";
+import { AppointmentRowSkeleton } from "../components/Skeleton";
 
 interface ListResult {
   items: Appointment[];
 }
 
-type TransitionTarget = "confirmed" | "completed" | "cancelled";
+type Tab = "today" | "upcoming" | "completed";
 
 function listAppointments(): Promise<ListResult> {
   return api<ListResult>("/appointments");
 }
-
-function transitionAppointment(id: string, status: TransitionTarget): Promise<Appointment> {
-  return api<Appointment>(`/appointments/${id}`, {
-    method: "PATCH",
-    body: { status },
-  });
+function transitionAppointment(id: string, status: AppointmentStatus): Promise<Appointment> {
+  return api<Appointment>(`/appointments/${id}`, { method: "PATCH", body: { status } });
 }
 
-function formatRange(startAt: string, endAt: string): string {
-  const fmt: Intl.DateTimeFormatOptions = {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  };
-  const s = new Date(startAt).toLocaleString(undefined, fmt);
-  const e = new Date(endAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return `${s} → ${e}`;
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 export function DashboardPage() {
-  const { user, logout } = useAuth();
-  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>("today");
 
   const query = useQuery<ListResult, ApiError>({
     queryKey: ["appointments"],
     queryFn: listAppointments,
   });
 
-  const transition = useMutation<Appointment, ApiError, { id: string; to: TransitionTarget }>({
+  // Optimistic update on transitions — UI flips status immediately, the
+  // network round-trip happens in the background. On error we roll back.
+  const transition = useMutation<
+    Appointment,
+    ApiError,
+    { id: string; to: AppointmentStatus },
+    { previous: ListResult | undefined }
+  >({
     mutationFn: ({ id, to }) => transitionAppointment(id, to),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+    onMutate: async ({ id, to }) => {
+      await qc.cancelQueries({ queryKey: ["appointments"] });
+      const previous = qc.getQueryData<ListResult>(["appointments"]);
+      qc.setQueryData<ListResult>(["appointments"], (old) =>
+        old
+          ? {
+              items: old.items.map((a) => (a.id === id ? { ...a, status: to } : a)),
+            }
+          : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(["appointments"], ctx.previous);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["appointments"] });
+    },
   });
 
-  const myAppointments = (query.data?.items ?? []).filter((a) => a.doctorId === user?.id);
+  const mine = useMemo(
+    () => (query.data?.items ?? []).filter((a) => a.doctorId === user?.id),
+    [query.data, user?.id],
+  );
+
+  const buckets = useMemo(() => {
+    const today = new Date();
+    return {
+      today: mine.filter(
+        (a) =>
+          isSameDay(new Date(a.startAt), today) &&
+          a.status !== "completed" &&
+          a.status !== "cancelled",
+      ),
+      upcoming: mine.filter(
+        (a) =>
+          new Date(a.startAt) > today &&
+          !isSameDay(new Date(a.startAt), today) &&
+          a.status !== "cancelled",
+      ),
+      completed: mine.filter((a) => a.status === "completed"),
+    };
+  }, [mine]);
+
+  const visible = buckets[tab];
+
+  const kpis = useMemo(() => {
+    return {
+      today: buckets.today.length,
+      pending: mine.filter((a) => a.status === "scheduled").length,
+      completed: buckets.completed.length,
+      cancelRate: rate(mine.filter((a) => a.status === "cancelled").length, mine.length),
+    };
+  }, [buckets, mine]);
 
   return (
-    <div className="page">
-      <header className="topbar">
-        <div>
-          <strong>{user?.email}</strong> <span className="role">{user?.role}</span>
+    <Layout title="Dashboard" meta={<span>Today · {new Date().toLocaleDateString()}</span>}>
+      <div className="kpi-grid">
+        <Kpi label="Today's queue" value={kpis.today} brand />
+        <Kpi label="Awaiting confirmation" value={kpis.pending} delta="Needs your review" />
+        <Kpi label="Completed (all-time)" value={kpis.completed} />
+        <Kpi label="Cancellation rate" value={`${kpis.cancelRate}%`} />
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <h2>Appointments</h2>
+            <div className="muted" style={{ marginTop: 2 }}>
+              {visible.length} {visible.length === 1 ? "appointment" : "appointments"}{" "}
+              <span className="muted">·</span> {tabLabel(tab)}
+            </div>
+          </div>
+          <div className="tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === "today"}
+              className={tab === "today" ? "active" : ""}
+              onClick={() => setTab("today")}
+            >
+              Today
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "upcoming"}
+              className={tab === "upcoming" ? "active" : ""}
+              onClick={() => setTab("upcoming")}
+            >
+              Upcoming
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "completed"}
+              className={tab === "completed" ? "active" : ""}
+              onClick={() => setTab("completed")}
+            >
+              Completed
+            </button>
+          </div>
         </div>
-        <button onClick={logout} className="link">
-          Sign out
-        </button>
-      </header>
 
-      <main>
-        <h1>Appointments</h1>
+        {query.isPending ? (
+          <ul className="appt-list">
+            <AppointmentRowSkeleton />
+            <AppointmentRowSkeleton />
+            <AppointmentRowSkeleton />
+          </ul>
+        ) : query.isError ? (
+          <div className="card-pad">
+            <div className="alert alert-error">
+              Couldn&apos;t load appointments — {query.error.message}.{" "}
+              <button
+                className="link"
+                onClick={() => void query.refetch()}
+                style={{ marginLeft: 8 }}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : visible.length === 0 ? (
+          <EmptyState
+            icon={<EmptyIcon />}
+            title={emptyTitle(tab)}
+            description={emptyDescription(tab)}
+          />
+        ) : (
+          <ul className="appt-list">
+            {visible.map((appointment) => (
+              <AppointmentCard
+                key={appointment.id}
+                appointment={appointment}
+                busy={transition.isPending}
+                onTransition={(to) => transition.mutate({ id: appointment.id, to })}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </Layout>
+  );
+}
 
-        {query.isPending ? <p>Loading…</p> : null}
-        {query.isError ? <p className="error">Failed to load: {query.error.message}</p> : null}
+function rate(count: number, total: number): number {
+  if (total === 0) return 0;
+  return Math.round((count / total) * 100);
+}
 
-        {query.data && myAppointments.length === 0 ? (
-          <p className="muted">No appointments yet.</p>
-        ) : null}
+function tabLabel(tab: Tab): string {
+  switch (tab) {
+    case "today": return "scheduled today";
+    case "upcoming": return "scheduled later";
+    case "completed": return "completed";
+  }
+}
+function emptyTitle(tab: Tab): string {
+  switch (tab) {
+    case "today": return "No appointments today";
+    case "upcoming": return "Nothing scheduled yet";
+    case "completed": return "No completed visits";
+  }
+}
+function emptyDescription(tab: Tab): string {
+  switch (tab) {
+    case "today": return "Your queue is clear. New bookings will appear here automatically.";
+    case "upcoming": return "Patients booking with you will land in this list.";
+    case "completed": return "Once you mark visits complete, they show up here.";
+  }
+}
 
-        <ul className="list">
-          {myAppointments.map((a) => (
-            <li key={a.id} className={`row status-${a.status}`}>
-              <div className="row-main">
-                <div className="when">{formatRange(a.startAt, a.endAt)}</div>
-                <div className="who">patient {a.patientId.slice(0, 8)}…</div>
-                {a.reason ? <div className="reason">{a.reason}</div> : null}
-              </div>
-              <div className="row-side">
-                <span className={`pill pill-${a.status}`}>{a.status}</span>
-                {a.status === "scheduled" ? (
-                  <button
-                    onClick={() => transition.mutate({ id: a.id, to: "confirmed" })}
-                    disabled={transition.isPending}
-                  >
-                    Confirm
-                  </button>
-                ) : null}
-                {a.status === "confirmed" ? (
-                  <button
-                    onClick={() => transition.mutate({ id: a.id, to: "completed" })}
-                    disabled={transition.isPending}
-                  >
-                    Complete
-                  </button>
-                ) : null}
-                {(a.status === "scheduled" || a.status === "confirmed") ? (
-                  <button
-                    className="danger"
-                    onClick={() => transition.mutate({ id: a.id, to: "cancelled" })}
-                    disabled={transition.isPending}
-                  >
-                    Cancel
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {transition.isError ? (
-          <p className="error">Action failed: {transition.error.message}</p>
-        ) : null}
-      </main>
+function Kpi({
+  label,
+  value,
+  delta,
+  brand: isBrand = false,
+}: {
+  label: string;
+  value: number | string;
+  delta?: string;
+  brand?: boolean;
+}) {
+  return (
+    <div className={`kpi${isBrand ? " brand" : ""}`}>
+      <span className="kpi-label">{label}</span>
+      <span className="kpi-value">{value}</span>
+      {delta ? <span className="kpi-delta">{delta}</span> : null}
     </div>
+  );
+}
+
+function EmptyIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M16 3v4M8 3v4M3 11h18" />
+    </svg>
   );
 }
