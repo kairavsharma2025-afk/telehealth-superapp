@@ -6,12 +6,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/lib/auth";
 import { tokenStore } from "./src/lib/tokenStore";
-import { HomeScreen } from "./src/screens/HomeScreen";
+import { AppointmentsScreen } from "./src/screens/AppointmentsScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 
 export type RootStackParamList = {
   Login: undefined;
-  Home: undefined;
+  Appointments: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -26,9 +26,9 @@ function RootNavigator() {
     <Stack.Navigator>
       {user ? (
         <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ title: "Telehealth" }}
+          name="Appointments"
+          component={AppointmentsScreen}
+          options={{ headerShown: false }}
         />
       ) : (
         <Stack.Screen
