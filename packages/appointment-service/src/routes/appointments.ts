@@ -7,7 +7,7 @@ import { asyncHandler, parseBody } from "../lib/http.js";
 import {
   createAppointmentSchema,
   listQuerySchema,
-  transitionSchema,
+  updateAppointmentSchema,
 } from "../lib/validation.js";
 import { canTransition, type AppointmentStatus } from "../lib/status.js";
 
@@ -22,6 +22,7 @@ interface AppointmentRow {
   end_at: Date;
   status: AppointmentStatus;
   reason: string | null;
+  notes: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -35,13 +36,14 @@ function toApi(row: AppointmentRow) {
     endAt: row.end_at.toISOString(),
     status: row.status,
     reason: row.reason,
+    notes: row.notes,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
 const SELECT_COLUMNS =
-  "id, patient_id, doctor_id, start_at, end_at, status, reason, created_at, updated_at";
+  "id, patient_id, doctor_id, start_at, end_at, status, reason, notes, created_at, updated_at";
 
 appointmentsRouter.post(
   "/",
@@ -150,13 +152,19 @@ appointmentsRouter.get(
   }),
 );
 
+// PATCH /:id — combined endpoint for status transitions AND clinical
+// notes. Either field is optional; at least one must be present (the
+// schema enforces). Permissions:
+//   * status transitions follow canTransition() per role.
+//   * notes are doctor-or-admin only — patients can't write clinical
+//     notes against their own appointment.
 appointmentsRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     if (!req.auth) throw new ServiceError("UNAUTHORIZED", "Auth context missing");
     const id = req.params["id"];
     if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
-    const { status: nextStatus } = parseBody(transitionSchema, req.body);
+    const input = parseBody(updateAppointmentSchema, req.body);
 
     const client = await pool.connect();
     try {
@@ -177,26 +185,46 @@ appointmentsRouter.patch(
         await client.query("ROLLBACK");
         throw new ServiceError("FORBIDDEN", "Not your appointment");
       }
-      if (!canTransition(req.auth.role, row.status, nextStatus)) {
-        await client.query("ROLLBACK");
-        throw new ServiceError(
-          "CONFLICT",
-          `Cannot transition ${row.status} -> ${nextStatus} as ${req.auth.role}`,
-        );
+
+      const sets: string[] = [];
+      const values: unknown[] = [id];
+
+      if (input.status !== undefined) {
+        if (!canTransition(req.auth.role, row.status, input.status)) {
+          await client.query("ROLLBACK");
+          throw new ServiceError(
+            "CONFLICT",
+            `Cannot transition ${row.status} -> ${input.status} as ${req.auth.role}`,
+          );
+        }
+        values.push(input.status);
+        sets.push(`status = $${values.length}`);
+      }
+
+      if (input.notes !== undefined) {
+        if (!isDoctor && !isAdmin) {
+          await client.query("ROLLBACK");
+          throw new ServiceError(
+            "FORBIDDEN",
+            "Only the doctor or an admin can edit clinical notes",
+          );
+        }
+        values.push(input.notes);
+        sets.push(`notes = $${values.length}`);
       }
 
       const updated = await client.query<AppointmentRow>(
-        `UPDATE appointments SET status = $2 WHERE id = $1 RETURNING ${SELECT_COLUMNS}`,
-        [id, nextStatus],
+        `UPDATE appointments SET ${sets.join(", ")} WHERE id = $1 RETURNING ${SELECT_COLUMNS}`,
+        values,
       );
       await client.query("COMMIT");
       const updatedRow = updated.rows[0];
       if (!updatedRow) throw new ServiceError("INTERNAL", "Update returned no row");
 
-      // Audit only admin-initiated transitions — patient/doctor actions
-      // are part of the normal appointment flow and are already captured
-      // by the appointments table's updated_at + status columns.
-      if (isAdmin) {
+      // Audit only admin-initiated status transitions — patient/doctor
+      // actions are part of the normal appointment flow and are already
+      // captured by the appointments table's updated_at + status columns.
+      if (isAdmin && input.status !== undefined) {
         void audit.record({
           service: "appointment-service",
           action: "appointment.admin-transition",
@@ -204,7 +232,7 @@ appointmentsRouter.patch(
           target: { type: "appointment", id: updatedRow.id },
           details: {
             from: row.status,
-            to: nextStatus,
+            to: input.status,
             patientId: updatedRow.patient_id,
             doctorId: updatedRow.doctor_id,
           },

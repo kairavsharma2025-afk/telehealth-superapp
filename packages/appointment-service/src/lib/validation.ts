@@ -14,10 +14,17 @@ export const createAppointmentSchema = z
   });
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 
-export const transitionSchema = z.object({
-  status: z.enum(APPOINTMENT_STATUSES),
-});
-export type TransitionInput = z.infer<typeof transitionSchema>;
+// PATCH body — accepts an optional status transition and/or optional
+// clinical notes. At least one must be present.
+export const updateAppointmentSchema = z
+  .object({
+    status: z.enum(APPOINTMENT_STATUSES).optional(),
+    notes: z.string().max(10_000).nullable().optional(),
+  })
+  .refine((d) => d.status !== undefined || d.notes !== undefined, {
+    message: "must include status or notes",
+  });
+export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
 
 export const listQuerySchema = z.object({
   status: z.enum(APPOINTMENT_STATUSES).optional(),
