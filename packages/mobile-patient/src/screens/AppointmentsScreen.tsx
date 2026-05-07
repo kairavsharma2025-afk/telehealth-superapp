@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -11,37 +11,33 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { formatTimeRange } from "../lib/format";
-
-type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled";
-
-interface Appointment {
-  id: string;
-  patientId: string;
-  doctorId: string;
-  startAt: string;
-  endAt: string;
-  status: AppointmentStatus;
-  reason: string | null;
-}
+import {
+  AppointmentCard,
+  type AppointmentItem,
+} from "../components/AppointmentCard";
+import { EmptyState } from "../components/EmptyState";
+import { Logo } from "../components/Logo";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { fontWeight, palette, radius, semantic, space } from "../theme";
 
 interface ListResult {
-  items: Appointment[];
+  items: AppointmentItem[];
 }
+
+type Tab = "upcoming" | "completed";
 
 function listAppointments(): Promise<ListResult> {
   return api<ListResult>("/appointments");
 }
 
-const STATUS_COLOR: Record<AppointmentStatus, string> = {
-  scheduled: "#f59e0b",
-  confirmed: "#3b82f6",
-  completed: "#10b981",
-  cancelled: "#ef4444",
-};
+function isUpcoming(a: AppointmentItem): boolean {
+  if (a.status === "cancelled" || a.status === "completed") return false;
+  return new Date(a.endAt) >= new Date();
+}
 
 export function AppointmentsScreen() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const [tab, setTab] = useState<Tab>("upcoming");
 
   const query = useQuery<ListResult, ApiError>({
     queryKey: ["appointments"],
@@ -52,155 +48,220 @@ export function AppointmentsScreen() {
     void query.refetch();
   }, [query]);
 
-  const items = query.data?.items ?? [];
+  const buckets = useMemo(() => {
+    const all = query.data?.items ?? [];
+    return {
+      upcoming: all
+        .filter(isUpcoming)
+        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
+      completed: all
+        .filter((a) => a.status === "completed" || a.status === "cancelled")
+        .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime()),
+    };
+  }, [query.data]);
+
+  const visible = buckets[tab];
+  const greetName = user?.email?.split("@")[0] ?? "there";
 
   return (
     <View style={styles.root}>
-      <View style={styles.topbar}>
-        <View>
-          <Text style={styles.email}>{user?.email}</Text>
-          <Text style={styles.role}>{user?.role}</Text>
+      <ScreenHeader
+        title="Your appointments"
+        subtitle={`Hi ${greetName}, here's your care schedule.`}
+        trailing={
+          <View style={styles.brandPill}>
+            <Logo size={20} color={palette.brand700} />
+          </View>
+        }
+      />
+
+      <View style={styles.tabsWrap}>
+        <View style={styles.tabs}>
+          <TabButton
+            label="Upcoming"
+            count={buckets.upcoming.length}
+            active={tab === "upcoming"}
+            onPress={() => setTab("upcoming")}
+          />
+          <TabButton
+            label="Past"
+            count={buckets.completed.length}
+            active={tab === "completed"}
+            onPress={() => setTab("completed")}
+          />
         </View>
-        <TouchableOpacity onPress={() => void logout()}>
-          <Text style={styles.signOut}>Sign out</Text>
-        </TouchableOpacity>
       </View>
 
       {query.isPending ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#2563eb" />
+          <ActivityIndicator color={palette.brand700} />
         </View>
       ) : query.isError ? (
         <View style={styles.center}>
-          <Text style={styles.error}>Failed to load: {query.error.message}</Text>
+          <EmptyState
+            icon={<IconAlert />}
+            title="We couldn't load your appointments"
+            description={query.error.message}
+            action={
+              <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
+                <Text style={styles.retryText}>Try again</Text>
+              </TouchableOpacity>
+            }
+          />
         </View>
-      ) : items.length === 0 ? (
+      ) : visible.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.muted}>No appointments yet.</Text>
+          <EmptyState
+            icon={<IconCalendar />}
+            title={tab === "upcoming" ? "No appointments yet" : "Nothing here yet"}
+            description={
+              tab === "upcoming"
+                ? "Tap the Book tab to schedule your first visit with a doctor."
+                : "Past visits will show up here once they're completed."
+            }
+          />
         </View>
       ) : (
         <FlatList
-          data={items}
+          data={visible}
           keyExtractor={(a) => a.id}
           contentContainerStyle={styles.list}
+          ItemSeparatorComponent={() => <View style={{ height: space[3] }} />}
           refreshControl={
             <RefreshControl
               refreshing={query.isFetching && !query.isPending}
               onRefresh={onRefresh}
-              tintColor="#2563eb"
+              tintColor={palette.brand700}
             />
           }
-          renderItem={({ item }) => (
-            <View style={styles.row}>
-              <View style={styles.rowMain}>
-                <Text style={styles.when}>
-                  {formatTimeRange(item.startAt, item.endAt)}
-                </Text>
-                <Text style={styles.who}>
-                  doctor {item.doctorId.slice(0, 8)}…
-                </Text>
-                {item.reason ? (
-                  <Text style={styles.reason}>{item.reason}</Text>
-                ) : null}
-              </View>
-              <View
-                style={[
-                  styles.pill,
-                  { backgroundColor: STATUS_COLOR[item.status] },
-                ]}
-              >
-                <Text style={styles.pillText}>{item.status}</Text>
-              </View>
-            </View>
-          )}
+          renderItem={({ item }) => <AppointmentCard appointment={item} />}
         />
       )}
     </View>
   );
 }
 
+function TabButton({
+  label,
+  count,
+  active,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.tab, active && styles.tabActive]}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+      <View style={[styles.countBubble, active && styles.countBubbleActive]}>
+        <Text style={[styles.countText, active && styles.countTextActive]}>{count}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function IconCalendar() {
+  return (
+    <View>
+      <Text style={{ fontSize: 28 }}>📅</Text>
+    </View>
+  );
+}
+function IconAlert() {
+  return (
+    <View>
+      <Text style={{ fontSize: 28 }}>⚠️</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#0f172a",
-  },
-  topbar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  root: { flex: 1, backgroundColor: semantic.bg },
+  brandPill: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.brand50,
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-    borderBottomColor: "#1e293b",
-    borderBottomWidth: 1,
+    justifyContent: "center",
   },
-  email: {
-    color: "#f8fafc",
-    fontSize: 14,
-    fontWeight: "600",
+  tabsWrap: {
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+    backgroundColor: semantic.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: semantic.border,
   },
-  role: {
-    color: "#22d3ee",
-    fontSize: 12,
-    marginTop: 2,
+  tabs: {
+    flexDirection: "row",
+    backgroundColor: semantic.surfaceMuted,
+    padding: 4,
+    borderRadius: radius.md,
+    gap: 2,
   },
-  signOut: {
-    color: "#f87171",
-    fontSize: 14,
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: space[3],
+    borderRadius: 6,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: semantic.surface,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: fontWeight.medium,
+    color: semantic.textMuted,
+  },
+  tabLabelActive: {
+    color: semantic.text,
+  },
+  countBubble: {
+    backgroundColor: semantic.borderStrong,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 9999,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  countBubbleActive: {
+    backgroundColor: palette.brand700,
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
+    color: semantic.textMuted,
+  },
+  countTextActive: {
+    color: palette.white,
+  },
+  list: {
+    padding: space[4],
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
   },
-  error: {
-    color: "#f87171",
-    textAlign: "center",
+  retryBtn: {
+    backgroundColor: palette.brand700,
+    paddingHorizontal: space[5],
+    paddingVertical: space[2],
+    borderRadius: radius.md,
   },
-  muted: {
-    color: "#64748b",
+  retryText: {
+    color: palette.white,
+    fontWeight: fontWeight.semibold,
     fontSize: 14,
-  },
-  list: {
-    padding: 16,
-    gap: 12,
-  },
-  row: {
-    flexDirection: "row",
-    backgroundColor: "#1e293b",
-    borderRadius: 10,
-    padding: 14,
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  rowMain: {
-    flex: 1,
-    gap: 4,
-  },
-  when: {
-    color: "#f8fafc",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  who: {
-    color: "#94a3b8",
-    fontSize: 13,
-  },
-  reason: {
-    color: "#cbd5e1",
-    fontSize: 13,
-    marginTop: 4,
-  },
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  pillText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
   },
 });
