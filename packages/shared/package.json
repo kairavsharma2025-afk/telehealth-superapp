@@ -18,10 +18,12 @@
     "clean": "rimraf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "express": "^4.21.1",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^20.12.7",
     "pino-pretty": "^11.3.0",
     "rimraf": "^5.0.5",

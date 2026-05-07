@@ -46,6 +46,10 @@ export async function ensureBucketExists(): Promise<void> {
   }
 }
 
+export async function pingBucket(): Promise<void> {
+  await internalClient.send(new HeadBucketCommand({ Bucket: config.s3.bucket }));
+}
+
 export function presignPut(objectKey: string, contentType: string): Promise<string> {
   const cmd = new PutObjectCommand({
     Bucket: config.s3.bucket,

@@ -1,13 +1,8 @@
-import { Router } from "express";
+import type { Router } from "express";
+import { createHealthRoutes } from "@telehealth/shared";
 import { pingDb } from "../db.js";
-import { asyncHandler } from "../lib/http.js";
 
-export const healthRouter: Router = Router();
-
-healthRouter.get(
-  "/health",
-  asyncHandler(async (_req, res) => {
-    await pingDb();
-    res.json({ status: "ok", service: "auth-service", db: "ok" });
-  }),
-);
+export const healthRouter: Router = createHealthRoutes({
+  service: "auth-service",
+  ready: { db: pingDb },
+});

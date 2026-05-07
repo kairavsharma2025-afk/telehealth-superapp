@@ -1,13 +1,9 @@
-import { Router } from "express";
+import type { Router } from "express";
+import { createHealthRoutes } from "@telehealth/shared";
 import { pingDb } from "../db.js";
-import { asyncHandler } from "../lib/http.js";
+import { pingBucket } from "../lib/s3.js";
 
-export const healthRouter: Router = Router();
-
-healthRouter.get(
-  "/health",
-  asyncHandler(async (_req, res) => {
-    await pingDb();
-    res.json({ status: "ok", service: "upload-service", db: "ok" });
-  }),
-);
+export const healthRouter: Router = createHealthRoutes({
+  service: "upload-service",
+  ready: { db: pingDb, s3: pingBucket },
+});
