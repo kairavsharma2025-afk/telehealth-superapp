@@ -1,5 +1,6 @@
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
+import { formatRelative } from "../lib/countdown";
 import { StatusPill, type AppointmentStatus } from "./StatusPill";
 
 export interface AppointmentItem {
@@ -12,61 +13,189 @@ export interface AppointmentItem {
   reason: string | null;
 }
 
+export interface DoctorRef {
+  fullName: string | null;
+  specialty: string | null;
+}
+
 interface AppointmentCardProps {
   appointment: AppointmentItem;
-  onPress?: () => void;
+  doctor: DoctorRef | null;
+  expanded: boolean;
+  onToggle: () => void;
+  onCancel: () => void;
+  onReschedule: () => void;
+  busy?: boolean;
 }
 
 const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const monthDayFmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const fullDateFmt = new Intl.DateTimeFormat(undefined, {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
 
-export function AppointmentCard({ appointment, onPress }: AppointmentCardProps) {
+function doctorName(doctor: DoctorRef | null, doctorId: string): string {
+  if (doctor?.fullName) return `Dr. ${capitalizeWords(doctor.fullName)}`;
+  return `Doctor #${doctorId.slice(0, 8)}`;
+}
+
+function capitalizeWords(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+export function AppointmentCard({
+  appointment,
+  doctor,
+  expanded,
+  onToggle,
+  onCancel,
+  onReschedule,
+  busy,
+}: AppointmentCardProps) {
   const start = new Date(appointment.startAt);
   const end = new Date(appointment.endAt);
+  const isUpcoming =
+    appointment.status !== "cancelled" &&
+    appointment.status !== "completed" &&
+    end.getTime() > Date.now();
+  const isJoinable =
+    appointment.status === "confirmed" &&
+    start.getTime() - Date.now() < 15 * 60_000 &&
+    end.getTime() > Date.now();
+  const canCancel =
+    appointment.status === "scheduled" || appointment.status === "confirmed";
+
+  const handleCancel = () => {
+    Alert.alert(
+      "Cancel appointment?",
+      `${doctorName(doctor, appointment.doctorId)} on ${fullDateFmt.format(start)} at ${timeFmt.format(start)}.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        { text: "Cancel appointment", style: "destructive", onPress: onCancel },
+      ],
+    );
+  };
+
+  const handleJoin = () => {
+    Alert.alert(
+      "Join consultation",
+      "Live video consultations are powered by Twilio Video; the room link is created when the doctor starts the consultation. Coming with the Phase 7 cloud rollout.",
+    );
+  };
 
   return (
     <TouchableOpacity
-      style={styles.card}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-      disabled={!onPress}
+      style={[styles.card, expanded && styles.cardExpanded]}
+      onPress={onToggle}
+      activeOpacity={0.85}
     >
-      <View style={styles.timeChip}>
-        <Text style={styles.timeChipDay}>{dayFmt.format(start).toUpperCase()}</Text>
-        <Text style={styles.timeChipTime}>{timeFmt.format(start)}</Text>
-        <Text style={styles.timeChipDate}>{monthDayFmt.format(start)}</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.timeChip} aria-hidden>
+          <Text style={styles.timeChipDay}>{dayFmt.format(start).toUpperCase()}</Text>
+          <Text style={styles.timeChipTime}>{timeFmt.format(start)}</Text>
+          <Text style={styles.timeChipDate}>{monthDayFmt.format(start)}</Text>
+        </View>
+
+        <View style={styles.body}>
+          <Text style={styles.headline} numberOfLines={1}>
+            {doctorName(doctor, appointment.doctorId)}
+          </Text>
+          <Text style={styles.specialty} numberOfLines={1}>
+            {doctor?.specialty ?? "Telehealth consultation"}
+          </Text>
+          <View style={styles.metaRow}>
+            <StatusPill status={appointment.status} />
+            {isUpcoming ? (
+              <Text style={styles.countdown}>· {formatRelative(start)}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <Text style={styles.chevron}>{expanded ? "▾" : "▸"}</Text>
       </View>
 
-      <View style={styles.body}>
-        <Text style={styles.headline} numberOfLines={1}>
-          Dr. #{appointment.doctorId.slice(0, 8)}
-        </Text>
-        <Text style={styles.meta} numberOfLines={2}>
-          {appointment.reason ?? "No reason provided"}
-        </Text>
-        <Text style={styles.subtle}>
-          {timeFmt.format(start)} – {timeFmt.format(end)}
-        </Text>
-        <View style={styles.statusRow}>
-          <StatusPill status={appointment.status} />
+      {expanded ? (
+        <View style={styles.expanded}>
+          <View style={styles.detailsRow}>
+            <Detail label="When" value={`${fullDateFmt.format(start)}`} />
+            <Detail label="Time" value={`${timeFmt.format(start)} – ${timeFmt.format(end)}`} />
+          </View>
+          {appointment.reason ? (
+            <Detail label="Reason for visit" value={appointment.reason} />
+          ) : null}
+
+          <View style={styles.actionsRow}>
+            {isJoinable ? (
+              <TouchableOpacity
+                style={[styles.action, styles.actionPrimary]}
+                onPress={handleJoin}
+              >
+                <Text style={styles.actionPrimaryText}>Join consultation</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canCancel && !isJoinable ? (
+              <TouchableOpacity
+                style={[styles.action, styles.actionPrimary]}
+                onPress={onReschedule}
+                disabled={busy}
+              >
+                <Text style={styles.actionPrimaryText}>Reschedule</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canCancel ? (
+              <TouchableOpacity
+                style={[styles.action, styles.actionDanger]}
+                onPress={handleCancel}
+                disabled={busy}
+              >
+                <Text style={styles.actionDangerText}>Cancel</Text>
+              </TouchableOpacity>
+            ) : null}
+            {!canCancel && !isJoinable ? (
+              <Text style={styles.terminalNote}>
+                {appointment.status === "completed"
+                  ? "This visit is complete."
+                  : "This appointment was cancelled."}
+              </Text>
+            ) : null}
+          </View>
         </View>
-      </View>
+      ) : null}
     </TouchableOpacity>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detail}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: "row",
-    alignItems: "stretch",
     backgroundColor: semantic.surface,
     borderRadius: radius.lg,
     padding: space[4],
-    gap: space[4],
-    ...nativeShadow.sm,
     borderWidth: 1,
     borderColor: semantic.border,
+    ...nativeShadow.sm,
+  },
+  cardExpanded: {
+    borderColor: palette.brand700,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: space[4],
   },
   timeChip: {
     backgroundColor: palette.brand50,
@@ -104,16 +233,91 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
     color: semantic.text,
   },
-  meta: {
-    fontSize: 13,
+  specialty: {
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+    color: palette.brand700,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  countdown: {
+    fontSize: 12,
     color: semantic.textMuted,
   },
-  subtle: {
-    fontSize: 12,
+  chevron: {
     color: semantic.textSubtle,
-    marginTop: 2,
+    fontSize: 18,
+    alignSelf: "flex-start",
+    marginTop: 4,
   },
-  statusRow: {
+  expanded: {
+    marginTop: space[4],
+    paddingTop: space[4],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semantic.border,
+    gap: space[3],
+  },
+  detailsRow: {
+    flexDirection: "row",
+    gap: space[3],
+    flexWrap: "wrap",
+  },
+  detail: {
+    flex: 1,
+    minWidth: 140,
+    gap: 2,
+  },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: fontWeight.semibold,
+    color: semantic.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: semantic.text,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: space[2],
+    flexWrap: "wrap",
     marginTop: space[2],
+  },
+  action: {
+    paddingHorizontal: space[3],
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    flexShrink: 0,
+  },
+  actionPrimary: {
+    backgroundColor: palette.brand700,
+  },
+  actionPrimaryText: {
+    color: palette.white,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
+  actionDanger: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+  },
+  actionDangerText: {
+    color: semantic.danger,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
+  terminalNote: {
+    color: semantic.textMuted,
+    fontSize: 13,
+    fontStyle: "italic",
   },
 });

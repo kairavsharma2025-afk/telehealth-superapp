@@ -8,20 +8,40 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
-import { api, type ApiError } from "../lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useNavigation,
+  type NavigationProp,
+} from "@react-navigation/native";
+import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import {
   AppointmentCard,
   type AppointmentItem,
+  type DoctorRef,
 } from "../components/AppointmentCard";
 import { EmptyState } from "../components/EmptyState";
 import { Logo } from "../components/Logo";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { fontWeight, palette, radius, semantic, space } from "../theme";
+import type { MainTabParamList } from "../../App";
 
 interface ListResult {
   items: AppointmentItem[];
+}
+
+interface Doctor {
+  id: string;
+  fullName: string | null;
+  specialty: string | null;
+}
+
+interface DoctorsResult {
+  items: Doctor[];
+}
+
+interface MeResult {
+  fullName: string | null;
 }
 
 type Tab = "upcoming" | "completed";
@@ -30,26 +50,89 @@ function listAppointments(): Promise<ListResult> {
   return api<ListResult>("/appointments");
 }
 
+function listDoctors(): Promise<DoctorsResult> {
+  return api<DoctorsResult>("/users/doctors");
+}
+
+// Fetch profile, tolerating 404 (no profile row yet — happens for users
+// who registered but never filled their profile in). Same shape either way.
+async function fetchMe(): Promise<MeResult> {
+  try {
+    return await api<MeResult>("/users/me");
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 404) {
+      return { fullName: null };
+    }
+    throw err;
+  }
+}
+
+function patchStatus(id: string, status: AppointmentItem["status"]): Promise<AppointmentItem> {
+  return api<AppointmentItem>(`/appointments/${id}`, {
+    method: "PATCH",
+    body: { status },
+  });
+}
+
 function isUpcoming(a: AppointmentItem): boolean {
   if (a.status === "cancelled" || a.status === "completed") return false;
   return new Date(a.endAt) >= new Date();
 }
 
+function firstName(fullName: string): string {
+  const trimmed = fullName.trim();
+  if (!trimmed) return "";
+  const first = trimmed.split(/\s+/)[0] ?? trimmed;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+
 export function AppointmentsScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation<NavigationProp<MainTabParamList>>();
+  const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("upcoming");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const query = useQuery<ListResult, ApiError>({
+  const appointments = useQuery<ListResult, ApiError>({
     queryKey: ["appointments"],
     queryFn: listAppointments,
   });
 
+  // Doctor directory used to look up real names. Cached longer because
+  // it changes rarely; we re-use the same query key as BookScreen so
+  // the second tab to load doesn't pay the round-trip again.
+  const doctors = useQuery<DoctorsResult, ApiError>({
+    queryKey: ["doctors"],
+    queryFn: listDoctors,
+    staleTime: 5 * 60_000,
+  });
+
+  const me = useQuery<MeResult, ApiError>({
+    queryKey: ["me"],
+    queryFn: fetchMe,
+    staleTime: 5 * 60_000,
+  });
+
+  const doctorMap = useMemo(() => {
+    const map = new Map<string, DoctorRef>();
+    for (const d of doctors.data?.items ?? []) {
+      map.set(d.id, { fullName: d.fullName, specialty: d.specialty });
+    }
+    return map;
+  }, [doctors.data]);
+
+  const cancelAppointment = useMutation<AppointmentItem, ApiError, string>({
+    mutationFn: (id) => patchStatus(id, "cancelled"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["appointments"] }),
+  });
+
   const onRefresh = useCallback(() => {
-    void query.refetch();
-  }, [query]);
+    void appointments.refetch();
+    void doctors.refetch();
+  }, [appointments, doctors]);
 
   const buckets = useMemo(() => {
-    const all = query.data?.items ?? [];
+    const all = appointments.data?.items ?? [];
     return {
       upcoming: all
         .filter(isUpcoming)
@@ -58,16 +141,30 @@ export function AppointmentsScreen() {
         .filter((a) => a.status === "completed" || a.status === "cancelled")
         .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime()),
     };
-  }, [query.data]);
+  }, [appointments.data]);
 
   const visible = buckets[tab];
-  const greetName = user?.email?.split("@")[0] ?? "there";
+  const greetName =
+    (me.data?.fullName ? firstName(me.data.fullName) : null) ??
+    (user?.email?.split("@")[0] ?? "there");
+
+  const handleReschedule = useCallback(
+    (id: string) => {
+      cancelAppointment.mutate(id, {
+        onSuccess: () => {
+          // Send the patient to the Book tab to pick a new slot.
+          navigation.navigate("Book");
+        },
+      });
+    },
+    [cancelAppointment, navigation],
+  );
 
   return (
     <View style={styles.root}>
       <ScreenHeader
-        title="Your appointments"
-        subtitle={`Hi ${greetName}, here's your care schedule.`}
+        title={`Hi ${greetName} 👋`}
+        subtitle="Here's your care schedule."
         trailing={
           <View style={styles.brandPill}>
             <Logo size={20} color={palette.brand700} />
@@ -92,16 +189,16 @@ export function AppointmentsScreen() {
         </View>
       </View>
 
-      {query.isPending ? (
+      {appointments.isPending ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.brand700} />
         </View>
-      ) : query.isError ? (
+      ) : appointments.isError ? (
         <View style={styles.center}>
           <EmptyState
             icon={<IconAlert />}
             title="We couldn't load your appointments"
-            description={query.error.message}
+            description={appointments.error.message}
             action={
               <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
                 <Text style={styles.retryText}>Try again</Text>
@@ -124,17 +221,30 @@ export function AppointmentsScreen() {
       ) : (
         <FlatList
           data={visible}
+          extraData={expandedId}
           keyExtractor={(a) => a.id}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={{ height: space[3] }} />}
           refreshControl={
             <RefreshControl
-              refreshing={query.isFetching && !query.isPending}
+              refreshing={appointments.isFetching && !appointments.isPending}
               onRefresh={onRefresh}
               tintColor={palette.brand700}
             />
           }
-          renderItem={({ item }) => <AppointmentCard appointment={item} />}
+          renderItem={({ item }) => (
+            <AppointmentCard
+              appointment={item}
+              doctor={doctorMap.get(item.doctorId) ?? null}
+              expanded={expandedId === item.id}
+              onToggle={() =>
+                setExpandedId((cur) => (cur === item.id ? null : item.id))
+              }
+              onCancel={() => cancelAppointment.mutate(item.id)}
+              onReschedule={() => handleReschedule(item.id)}
+              busy={cancelAppointment.isPending}
+            />
+          )}
         />
       )}
     </View>
@@ -167,18 +277,10 @@ function TabButton({
 }
 
 function IconCalendar() {
-  return (
-    <View>
-      <Text style={{ fontSize: 28 }}>📅</Text>
-    </View>
-  );
+  return <Text style={{ fontSize: 28 }}>📅</Text>;
 }
 function IconAlert() {
-  return (
-    <View>
-      <Text style={{ fontSize: 28 }}>⚠️</Text>
-    </View>
-  );
+  return <Text style={{ fontSize: 28 }}>⚠️</Text>;
 }
 
 const styles = StyleSheet.create({

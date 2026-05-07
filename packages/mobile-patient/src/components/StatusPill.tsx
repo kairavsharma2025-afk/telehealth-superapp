@@ -1,6 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 import { fontWeight, semantic } from "../theme";
 
+// Patient-facing labels. Internally the backend uses 'scheduled' for
+// "patient booked, doctor hasn't confirmed yet" — from the patient's
+// perspective that's clearer as "Pending".
 export type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled";
 
 const COLOR: Record<AppointmentStatus, { bg: string; fg: string }> = {
@@ -11,7 +14,7 @@ const COLOR: Record<AppointmentStatus, { bg: string; fg: string }> = {
 };
 
 const LABEL: Record<AppointmentStatus, string> = {
-  scheduled: "Scheduled",
+  scheduled: "Pending",
   confirmed: "Confirmed",
   completed: "Completed",
   cancelled: "Cancelled",
