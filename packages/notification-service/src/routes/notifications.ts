@@ -22,6 +22,7 @@ interface NotificationRow {
   status: NotificationStatus;
   error_message: string | null;
   sent_at: Date | null;
+  read_at: Date | null;
   retries: number;
   created_at: Date;
   updated_at: Date;
@@ -38,6 +39,7 @@ function toApi(row: NotificationRow) {
     status: row.status,
     errorMessage: row.error_message,
     sentAt: row.sent_at ? row.sent_at.toISOString() : null,
+    readAt: row.read_at ? row.read_at.toISOString() : null,
     retries: row.retries,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -46,7 +48,7 @@ function toApi(row: NotificationRow) {
 
 const SELECT_COLUMNS = `
   id, recipient_user_id, created_by_user_id, channel, template, payload,
-  status, error_message, sent_at, retries, created_at, updated_at
+  status, error_message, sent_at, read_at, retries, created_at, updated_at
 `;
 
 notificationsRouter.post(
@@ -130,6 +132,47 @@ notificationsRouter.post(
     const recipient = await fetchRecipient(row.recipient_user_id);
     const final = await tryDispatchAndPersist(row, recipient);
     res.json(toApi(final));
+  }),
+);
+
+// Mark a single notification as read. Idempotent — clamps read_at to its
+// existing value via COALESCE so a duplicate tap doesn't reset the
+// timestamp. Recipient-only: 404s for anyone else, including admins,
+// because read state is personal.
+notificationsRouter.post(
+  "/:id/read",
+  asyncHandler(async (req, res) => {
+    if (!req.auth) throw new ServiceError("UNAUTHORIZED", "Auth context missing");
+    const id = req.params["id"];
+    if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
+
+    const result = await pool.query<NotificationRow>(
+      `UPDATE notifications
+          SET read_at = COALESCE(read_at, NOW())
+        WHERE id = $1 AND recipient_user_id = $2
+        RETURNING ${SELECT_COLUMNS}`,
+      [id, req.auth.userId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new ServiceError("NOT_FOUND", "Notification not found");
+    res.json(toApi(row));
+  }),
+);
+
+// Mark every unread notification for the caller as read in one go —
+// useful for the "clear inbox" gesture in the UI. Returns the updated
+// count.
+notificationsRouter.post(
+  "/read-all",
+  asyncHandler(async (req, res) => {
+    if (!req.auth) throw new ServiceError("UNAUTHORIZED", "Auth context missing");
+    const result = await pool.query(
+      `UPDATE notifications
+          SET read_at = NOW()
+        WHERE recipient_user_id = $1 AND read_at IS NULL`,
+      [req.auth.userId],
+    );
+    res.json({ updated: result.rowCount ?? 0 });
   }),
 );
 
