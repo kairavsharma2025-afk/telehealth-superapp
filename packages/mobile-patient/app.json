@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Telehealth Patient",
+    "slug": "telehealth-patient",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "telehealth-patient",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.telehealth.patient"
+    },
+    "android": {
+      "package": "com.telehealth.patient"
+    }
+  }
+}

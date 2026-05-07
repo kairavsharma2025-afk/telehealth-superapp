@@ -20,7 +20,9 @@ export default tseslint.config(
       "**/.vite/**",
       "**/*.tsbuildinfo",
       "backups/**",
-      "packages/mobile-patient/**", // empty shell
+      "packages/mobile-patient/.expo/**",
+      "packages/mobile-patient/babel.config.js", // CommonJS, not in tsconfig
+      "packages/mobile-patient/metro.config.js", // CommonJS, not in tsconfig
       "packages/*/scripts/**", // migration runners — not in service tsconfig
       "packages/*/migrations/**", // raw SQL
       "eslint.config.js", // self
@@ -69,6 +71,27 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react/react-in-jsx-scope": "off", // new JSX transform
       "react/prop-types": "off", // we have TS
+    },
+  },
+
+  // React Native code — mobile-patient. Same React rules as web; globals
+  // are RN's runtime (fetch/console/setTimeout via standard ECMAScript +
+  // a few Metro-injected ones).
+  {
+    files: ["packages/mobile-patient/**/*.{ts,tsx}"],
+    plugins: { react, "react-hooks": reactHooks },
+    languageOptions: {
+      globals: {
+        ...globals.browser, // fetch, console, setTimeout, AbortSignal — all present in RN
+        __DEV__: "readonly",
+      },
+    },
+    settings: { react: { version: "detect" } },
+    rules: {
+      ...react.configs.flat.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
     },
   },
 
