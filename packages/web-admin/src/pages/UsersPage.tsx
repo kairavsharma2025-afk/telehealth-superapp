@@ -43,6 +43,8 @@ export function UsersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
   });
 
+  const items = query.data?.items ?? [];
+
   return (
     <div>
       <header className="page-header">
@@ -51,6 +53,7 @@ export function UsersPage() {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as RoleFilter)}
+            aria-label="Filter by role"
           >
             <option value="all">All roles</option>
             <option value="patient">Patients</option>
@@ -68,59 +71,86 @@ export function UsersPage() {
         </div>
       </header>
 
-      {query.isPending ? <p>Loading…</p> : null}
-      {query.isError ? <p className="error">Failed: {query.error.message}</p> : null}
+      {query.isError ? (
+        <div className="alert alert-error">Failed: {query.error.message}</div>
+      ) : null}
+      {toggleActive.isError ? (
+        <div className="alert alert-error">
+          Action failed: {toggleActive.error.message}
+        </div>
+      ) : null}
 
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Created</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {(query.data?.items ?? []).map((u) => {
-            const isSelf = me?.id === u.id;
-            return (
-              <tr key={u.id} className={u.isActive ? "" : "row-inactive"}>
-                <td>{u.email}</td>
-                <td>
-                  <span className={`pill pill-${u.role}`}>{u.role}</span>
-                </td>
-                <td>{u.isActive ? "active" : "inactive"}</td>
-                <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-                <td className="actions">
-                  {isSelf ? (
-                    <span className="muted">you</span>
-                  ) : u.isActive ? (
-                    <button
-                      className="danger"
-                      disabled={toggleActive.isPending}
-                      onClick={() => toggleActive.mutate({ id: u.id, isActive: false })}
-                    >
-                      Deactivate
-                    </button>
-                  ) : (
-                    <button
-                      disabled={toggleActive.isPending}
-                      onClick={() => toggleActive.mutate({ id: u.id, isActive: true })}
-                    >
-                      Reactivate
-                    </button>
-                  )}
+      <div className="card">
+        <div className="card-header">
+          <h2>Directory</h2>
+          <span className="muted">{items.length} {items.length === 1 ? "user" : "users"}</span>
+        </div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Joined</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {query.isPending ? (
+              <tr>
+                <td colSpan={5} className="muted" style={{ padding: 24 }}>Loading…</td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted" style={{ padding: 24 }}>
+                  No users match this filter.
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {toggleActive.isError ? (
-        <p className="error">Action failed: {toggleActive.error.message}</p>
-      ) : null}
+            ) : (
+              items.map((u) => {
+                const isSelf = me?.id === u.id;
+                return (
+                  <tr key={u.id} className={u.isActive ? "" : "row-inactive"}>
+                    <td>{u.email}</td>
+                    <td>
+                      <span className={`pill pill-${u.role}`}>{u.role}</span>
+                    </td>
+                    <td className="muted">{u.isActive ? "Active" : "Inactive"}</td>
+                    <td className="muted">
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="actions">
+                      {isSelf ? (
+                        <span className="muted">you</span>
+                      ) : u.isActive ? (
+                        <button
+                          className="danger"
+                          disabled={toggleActive.isPending}
+                          onClick={() =>
+                            toggleActive.mutate({ id: u.id, isActive: false })
+                          }
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          className="secondary"
+                          disabled={toggleActive.isPending}
+                          onClick={() =>
+                            toggleActive.mutate({ id: u.id, isActive: true })
+                          }
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
