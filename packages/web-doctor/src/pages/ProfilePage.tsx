@@ -40,7 +40,7 @@ function initialsFor(profile: Profile, email: string | undefined): string {
 }
 
 export function ProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
 
@@ -150,7 +150,7 @@ export function ProfilePage() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: 24 }}>
         <div className="card-header">
           <h2>About</h2>
         </div>
@@ -167,6 +167,24 @@ export function ProfilePage() {
               <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>
             </dd>
           </dl>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2>Session</h2>
+        </div>
+        <div className="card-pad row-spread">
+          <div>
+            <div style={{ fontWeight: 600 }}>Sign out of the doctor console</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+              You&apos;ll need to sign in again to access patients and
+              appointments.
+            </div>
+          </div>
+          <button className="danger" onClick={logout}>
+            Sign out
+          </button>
         </div>
       </div>
     </Layout>

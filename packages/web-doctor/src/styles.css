@@ -258,6 +258,22 @@ label {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  /* Constrain to viewport so the foot (sign-out button) stays visible
+     no matter how many nav items the sidebar carries. The middle nav
+     section scrolls if content exceeds height. */
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+}
+.app-sidebar-brand,
+.app-sidebar-foot {
+  flex-shrink: 0;
+}
+.app-sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .app-sidebar-brand {
   display: flex;
