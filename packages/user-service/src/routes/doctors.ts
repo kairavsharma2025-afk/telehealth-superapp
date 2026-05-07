@@ -15,23 +15,25 @@ doctorsRouter.use(requireAuth);
 interface DoctorRow {
   id: string;
   full_name: string | null;
+  specialty: string | null;
 }
 
 doctorsRouter.get(
   "/",
   asyncHandler(async (_req, res) => {
     const result = await pool.query<DoctorRow>(
-      `SELECT u.id, p.full_name
+      `SELECT u.id, p.full_name, p.specialty
          FROM users u
          LEFT JOIN profiles p ON p.user_id = u.id
         WHERE u.role = 'doctor' AND u.is_active = TRUE
-        ORDER BY p.full_name NULLS LAST, u.id
+        ORDER BY p.specialty NULLS LAST, p.full_name NULLS LAST, u.id
         LIMIT 200`,
     );
     res.json({
       items: result.rows.map((r) => ({
         id: r.id,
         fullName: r.full_name,
+        specialty: r.specialty,
       })),
     });
   }),

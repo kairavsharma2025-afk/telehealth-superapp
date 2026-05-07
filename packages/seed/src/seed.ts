@@ -24,6 +24,10 @@ const LAST = [
   "sharma", "patel", "kumar", "singh", "rao", "iyer", "menon", "khan",
   "gupta", "agarwal", "reddy", "naidu", "joshi", "verma", "das", "shah",
 ];
+const SPECIALTIES = [
+  "General Medicine", "Cardiology", "Dermatology", "Pediatrics",
+  "Psychiatry", "Orthopedics", "Gynecology", "ENT",
+];
 
 function pick<T>(arr: readonly T[]): T {
   const idx = Math.floor(Math.random() * arr.length);
@@ -103,17 +107,24 @@ async function main() {
   console.log(`  inserted ${allUsers.rowCount} users in ${Date.now() - tStart}ms`);
 
   // ---------------- profiles ----------------
-  // ~70% of users get a profile.
+  // Every doctor gets a profile (so every doctor has a specialty for the
+  // booking UI). ~70% of patients/admins get a profile too.
   console.log("inserting profiles...");
   const profileRows = allUsers.rows
-    .filter(() => Math.random() < 0.7)
+    .filter((u) => u.role === "doctor" || Math.random() < 0.7)
     .map((u) => {
       const { first, last } = makeName();
       const phone = `+91 9${rand(900000000) + 100000000}`;
       const dob = randomDateOfBirth();
-      return [u.id, `${first} ${last}`, phone, dob];
+      const specialty = u.role === "doctor" ? pick(SPECIALTIES) : null;
+      return [u.id, `${first} ${last}`, phone, dob, specialty];
     });
-  await batchInsert(client, "profiles", ["user_id", "full_name", "phone", "date_of_birth"], profileRows);
+  await batchInsert(
+    client,
+    "profiles",
+    ["user_id", "full_name", "phone", "date_of_birth", "specialty"],
+    profileRows,
+  );
   console.log(`  inserted ${profileRows.length} profiles`);
 
   // ---------------- appointments ----------------

@@ -1,7 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,9 +16,12 @@ import DateTimePicker, {
 import { api, ApiError } from "../lib/api";
 import { formatTimeRange } from "../lib/format";
 
+const isWeb = Platform.OS === "web";
+
 interface Doctor {
   id: string;
   fullName: string | null;
+  specialty: string | null;
 }
 
 interface DoctorsResult {
@@ -74,6 +76,27 @@ export function BookScreen() {
   const [pickerMode, setPickerMode] = useState<"date" | "time" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(null);
+
+  // Group doctors by specialty for the filter pills + sectioned list.
+  // "Other" bucket catches doctors with no specialty so the UI never
+  // silently drops rows.
+  const grouped = useMemo(() => {
+    const items = doctors.data?.items ?? [];
+    const map = new Map<string, Doctor[]>();
+    for (const d of items) {
+      const key = d.specialty ?? "Other";
+      const list = map.get(key) ?? [];
+      list.push(d);
+      map.set(key, list);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [doctors.data]);
+
+  const specialties = useMemo(() => grouped.map(([k]) => k), [grouped]);
+  const visible = specialtyFilter
+    ? grouped.filter(([k]) => k === specialtyFilter)
+    : grouped;
 
   const endAt = new Date(startAt.getTime() + SLOT_MINUTES * 60_000);
 
@@ -124,61 +147,114 @@ export function BookScreen() {
         <Text style={styles.error}>
           Failed to load doctors: {doctors.error.message}
         </Text>
-      ) : (doctors.data?.items.length ?? 0) === 0 ? (
+      ) : grouped.length === 0 ? (
         <Text style={styles.muted}>No doctors available.</Text>
       ) : (
-        <FlatList
-          data={doctors.data?.items ?? []}
-          keyExtractor={(d) => d.id}
-          scrollEnabled={false}
-          renderItem={({ item }) => {
-            const selected = item.id === doctorId;
-            return (
+        <>
+          {/* Specialty filter pills — tap one to narrow, tap again to clear. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterPill,
+                !specialtyFilter && styles.filterPillActive,
+              ]}
+              onPress={() => setSpecialtyFilter(null)}
+            >
+              <Text style={styles.filterPillText}>All</Text>
+            </TouchableOpacity>
+            {specialties.map((s) => (
               <TouchableOpacity
-                onPress={() => setDoctorId(item.id)}
-                style={[styles.doctorRow, selected && styles.doctorRowSelected]}
+                key={s}
+                style={[
+                  styles.filterPill,
+                  specialtyFilter === s && styles.filterPillActive,
+                ]}
+                onPress={() =>
+                  setSpecialtyFilter((prev) => (prev === s ? null : s))
+                }
               >
-                <Text style={styles.doctorName}>
-                  {item.fullName ?? "Unnamed doctor"}
-                </Text>
-                <Text style={styles.doctorId}>{item.id.slice(0, 8)}…</Text>
+                <Text style={styles.filterPillText}>{s}</Text>
               </TouchableOpacity>
-            );
-          }}
-        />
+            ))}
+          </ScrollView>
+
+          {/* Sectioned doctor list, scrolls inside a capped pane so the
+              date/time + Book button below stay reachable. */}
+          <ScrollView style={styles.doctorList} nestedScrollEnabled>
+            {visible.map(([specialty, docs]) => (
+              <View key={specialty}>
+                <Text style={styles.sectionHeader}>
+                  {specialty} · {docs.length}
+                </Text>
+                {docs.map((item) => {
+                  const selected = item.id === doctorId;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => setDoctorId(item.id)}
+                      style={[
+                        styles.doctorRow,
+                        selected && styles.doctorRowSelected,
+                      ]}
+                    >
+                      <Text style={styles.doctorName}>
+                        {item.fullName ?? "Unnamed doctor"}
+                      </Text>
+                      <Text style={styles.doctorId}>
+                        {item.id.slice(0, 8)}…
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </ScrollView>
+        </>
       )}
 
       <Text style={styles.sectionLabel}>When</Text>
-      <View style={styles.pickerRow}>
-        <TouchableOpacity
-          style={styles.pickerButton}
-          onPress={() => setPickerMode("date")}
-        >
-          <Text style={styles.pickerButtonLabel}>Date</Text>
-          <Text style={styles.pickerButtonValue}>
-            {startAt.toLocaleDateString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.pickerButton}
-          onPress={() => setPickerMode("time")}
-        >
-          <Text style={styles.pickerButtonLabel}>Time</Text>
-          <Text style={styles.pickerButtonValue}>
-            {startAt.toLocaleTimeString(undefined, {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {isWeb ? (
+        // datetimepicker has no web rendering. Use a single native HTML
+        // datetime-local input via a hidden TextInput hack — simpler to
+        // just inject the input directly. We render it as a styled
+        // wrapper around an <input>.
+        <WebDateTimeInput value={startAt} onChange={setStartAt} />
+      ) : (
+        <View style={styles.pickerRow}>
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => setPickerMode("date")}
+          >
+            <Text style={styles.pickerButtonLabel}>Date</Text>
+            <Text style={styles.pickerButtonValue}>
+              {startAt.toLocaleDateString(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => setPickerMode("time")}
+          >
+            <Text style={styles.pickerButtonLabel}>Time</Text>
+            <Text style={styles.pickerButtonValue}>
+              {startAt.toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <Text style={styles.muted}>Slot is {SLOT_MINUTES} minutes.</Text>
 
-      {pickerMode ? (
+      {!isWeb && pickerMode ? (
         <DateTimePicker
           value={startAt}
           mode={pickerMode}
@@ -242,6 +318,46 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginTop: 16,
     marginBottom: 6,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  filterPillActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#60a5fa",
+  },
+  filterPillText: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  doctorList: {
+    maxHeight: 280,
+    borderRadius: 8,
+    backgroundColor: "#0b1220",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  sectionHeader: {
+    color: "#60a5fa",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
   },
   doctorRow: {
     backgroundColor: "#1e293b",
@@ -321,3 +437,29 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+// Local datetime input for the web platform. Casts to `any` once at the
+// boundary because react-native-web does forward `type` to the underlying
+// <input>, but TextInput's TS surface doesn't expose it.
+function WebDateTimeInput(props: { value: Date; onChange: (d: Date) => void }) {
+  const local = toLocalDatetimeString(props.value);
+  return (
+    <TextInput
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {...({ type: "datetime-local" } as any)}
+      value={local}
+      onChangeText={(text) => {
+        const next = new Date(text);
+        if (!Number.isNaN(next.getTime())) props.onChange(next);
+      }}
+      style={styles.reasonInput}
+    />
+  );
+}
+
+function toLocalDatetimeString(d: Date): string {
+  // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in local time,
+  // not UTC. toISOString would produce UTC.
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
