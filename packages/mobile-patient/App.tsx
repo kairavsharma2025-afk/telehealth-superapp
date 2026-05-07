@@ -8,11 +8,13 @@ import { AuthProvider, useAuth } from "./src/lib/auth";
 import { tokenStore } from "./src/lib/tokenStore";
 import { AppointmentsScreen } from "./src/screens/AppointmentsScreen";
 import { BookScreen } from "./src/screens/BookScreen";
+import { DocumentsScreen } from "./src/screens/DocumentsScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 
 export type MainTabParamList = {
   Appointments: undefined;
   Book: undefined;
+  Documents: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -39,6 +41,11 @@ function MainTabs() {
         options={{ headerShown: false }}
       />
       <Tab.Screen name="Book" component={BookScreen} />
+      <Tab.Screen
+        name="Documents"
+        component={DocumentsScreen}
+        options={{ headerShown: false }}
+      />
     </Tab.Navigator>
   );
 }
