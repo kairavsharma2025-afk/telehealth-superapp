@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Signing out…</title>
+    <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="expires" content="0" />
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .card {
+        text-align: center;
+      }
+      .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #cbd5e1;
+        border-top-color: #0f766e;
+        border-radius: 50%;
+        margin: 0 auto 16px;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="spinner"></div>
+      <strong>Signing out…</strong>
+    </div>
+    <script>
+      // Pure-HTML sign-out. No React, no router, no module bundling.
+      // Vite serves files in public/ as static assets unchanged.
+      try {
+        localStorage.removeItem("telehealth.accessToken");
+        localStorage.removeItem("telehealth.refreshToken");
+        localStorage.removeItem("telehealth.user");
+      } catch (e) {
+        // localStorage may be unavailable (private mode in some
+        // browsers). Continue to redirect anyway.
+      }
+      // Replace so a Back button doesn't bring the user back here.
+      window.location.replace("/login");
+    </script>
+  </body>
+</html>

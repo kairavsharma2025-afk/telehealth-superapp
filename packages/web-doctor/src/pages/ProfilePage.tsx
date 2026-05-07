@@ -40,7 +40,7 @@ function initialsFor(profile: Profile, email: string | undefined): string {
 }
 
 export function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
 
@@ -183,11 +183,7 @@ export function ProfilePage() {
             </div>
           </div>
           <a
-            href="/login?auth_clear=1"
-            onClick={(e) => {
-              e.preventDefault();
-              logout();
-            }}
+            href="/signout.html"
             className="btn btn-danger"
             style={{ textDecoration: "none" }}
           >

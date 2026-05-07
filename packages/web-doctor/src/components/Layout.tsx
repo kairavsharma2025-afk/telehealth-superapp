@@ -61,7 +61,7 @@ const SECONDARY_NAV: NavItem[] = [
 ];
 
 export function Layout({ title, meta, children }: LayoutProps) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -92,7 +92,21 @@ export function Layout({ title, meta, children }: LayoutProps) {
         <div className="app-sidebar-foot">
           <div className="who">{user?.email ?? "Signed out"}</div>
           {user ? <span className="role-tag">{user.role}</span> : null}
-          <button onClick={logout}>Sign out</button>
+          {/* Plain anchor to a static HTML file in public/. No React,
+              no router, no bundle — Vite serves it as-is. The page
+              clears localStorage and redirects to /login. */}
+          <a
+            href="/signout.html"
+            className="btn btn-secondary"
+            style={{
+              marginTop: 10,
+              width: "100%",
+              textDecoration: "none",
+              justifyContent: "center",
+            }}
+          >
+            Sign out
+          </a>
         </div>
       </aside>
 
