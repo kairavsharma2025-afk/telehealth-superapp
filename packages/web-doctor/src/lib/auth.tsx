@@ -45,6 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     tokenStore.clear();
+    // Force a hard navigation to /login. The pub/sub on tokenStore +
+    // RequireAuth's <Navigate> should already redirect, but we've seen
+    // edge cases where the redirect appears to be ignored — usually
+    // when the user clicked from a route whose <Navigate> mounts in
+    // the same render cycle as a parent re-render. Hard-replacing the
+    // URL guarantees the user lands on /login with a clean app state.
+    window.location.assign("/login");
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({ user, login, logout }), [user, login, logout]);
