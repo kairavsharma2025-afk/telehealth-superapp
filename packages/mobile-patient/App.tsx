@@ -19,6 +19,7 @@ import { BookScreen } from "./src/screens/BookScreen";
 import { DocumentsScreen } from "./src/screens/DocumentsScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { NotificationsScreen } from "./src/screens/NotificationsScreen";
+import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { fontWeight, palette, semantic } from "./src/theme";
 
 export type MainTabParamList = {
@@ -26,6 +27,7 @@ export type MainTabParamList = {
   Book: undefined;
   Documents: undefined;
   Notifications: undefined;
+  Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -97,6 +99,11 @@ function MainTabs() {
         name="Notifications"
         component={NotificationsScreen}
         options={{ tabBarIcon: tabIcon("🔔") }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ tabBarIcon: tabIcon("👤") }}
       />
     </Tab.Navigator>
   );
