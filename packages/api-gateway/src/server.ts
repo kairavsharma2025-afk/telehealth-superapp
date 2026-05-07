@@ -1,7 +1,7 @@
 import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
-import { httpLogger } from "@telehealth/shared";
+import { createMetrics, httpLogger } from "@telehealth/shared";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { requireAuth, requireRole } from "./middleware/auth.js";
@@ -11,12 +11,15 @@ import { buildProxy } from "./routes/proxy.js";
 
 export function buildServer(): Express {
   const app = express();
+  const metrics = createMetrics({ service: "api-gateway" });
   app.disable("x-powered-by");
   app.use(httpLogger(logger));
+  app.use(metrics.middleware);
   app.use(helmet());
   app.use(cors());
 
   app.use(healthRouter);
+  app.use(metrics.router);
 
   app.get("/whoami", requireAuth, (req, res) => {
     res.json({ auth: req.auth, requestId: req.id });
