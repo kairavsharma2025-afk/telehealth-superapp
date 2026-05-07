@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { createElement, useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -395,19 +395,36 @@ function DateTimeField(props: {
   onWebChange: (d: Date) => void;
 }) {
   if (isWeb) {
+    // react-native-web's <TextInput> filters unknown HTML attrs (type,
+    // step, min, max), so even with a spread cast it renders as
+    // <input type="text"> — no calendar picker. Drop straight to the
+    // DOM via createElement, which on web goes through ReactDOM and
+    // renders a real <input type="datetime-local">. Behind isWeb so
+    // it's never reached at runtime on native.
+    const inputStyle: React.CSSProperties = {
+      width: "100%",
+      marginTop: 4,
+      padding: 0,
+      border: "none",
+      outline: "none",
+      background: "transparent",
+      color: semantic.text,
+      fontSize: 15,
+      fontWeight: 600,
+      fontFamily: "inherit",
+    };
     return (
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>{props.label}</Text>
-        <TextInput
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          {...({ type: "datetime-local" } as any)}
-          value={toLocalDatetimeString(props.value)}
-          onChangeText={(text) => {
-            const next = new Date(text);
+        {createElement("input", {
+          type: "datetime-local",
+          value: toLocalDatetimeString(props.value),
+          onChange: (e: { target: { value: string } }) => {
+            const next = new Date(e.target.value);
             if (!Number.isNaN(next.getTime())) props.onWebChange(next);
-          }}
-          style={styles.fieldInput}
-        />
+          },
+          style: inputStyle,
+        })}
       </View>
     );
   }
