@@ -11,13 +11,19 @@ import {
 import { type AppointmentStatus } from "../components/StatusPill";
 import { EmptyState } from "../components/EmptyState";
 import { AppointmentRowSkeleton } from "../components/Skeleton";
+import { PlayIcon } from "../components/icons";
 import { formatRelative } from "../lib/countdown";
 
 interface ListResult {
   items: Appointment[];
 }
 
-type Tab = "today" | "upcoming" | "completed";
+type Tab = "today" | "upcoming" | "completed" | "cancelled";
+
+// Cancellation rate is meaningless until there's enough history to
+// produce a stable signal — anything below this threshold renders as
+// "—" with a "Not enough data yet" tooltip.
+const CANCEL_RATE_MIN_SAMPLE = 5;
 
 function listAppointments(): Promise<ListResult> {
   return api<ListResult>("/appointments");
@@ -45,8 +51,6 @@ export function DashboardPage() {
     queryFn: listAppointments,
   });
 
-  // Optimistic update on transitions — UI flips status immediately, the
-  // network round-trip happens in the background. On error we roll back.
   const transition = useMutation<
     Appointment,
     ApiError,
@@ -95,23 +99,27 @@ export function DashboardPage() {
           a.status !== "cancelled",
       ),
       completed: mine.filter((a) => a.status === "completed"),
+      cancelled: mine.filter((a) => a.status === "cancelled"),
     };
   }, [mine]);
 
   const visible = buckets[tab];
 
   const kpis = useMemo(() => {
+    const cancelledCount = buckets.cancelled.length;
+    const totalSample = mine.length;
+    const cancelRate =
+      totalSample < CANCEL_RATE_MIN_SAMPLE
+        ? null
+        : Math.round((cancelledCount / totalSample) * 100);
     return {
       today: buckets.today.length,
       pending: mine.filter((a) => a.status === "scheduled").length,
       completed: buckets.completed.length,
-      cancelRate: rate(mine.filter((a) => a.status === "cancelled").length, mine.length),
+      cancelRate,
     };
   }, [buckets, mine]);
 
-  // "Next up" — first non-terminal appointment by start time. Drives
-  // the hero widget so the doctor sees their next visit + a quick CTA
-  // the moment they land on the dashboard.
   const nextUp = useMemo(() => {
     const now = Date.now();
     return mine
@@ -161,10 +169,9 @@ export function DashboardPage() {
                 Accept
               </button>
             ) : nextUp.status === "confirmed" ? (
-              <button
-                onClick={() => navigate(`/consultation/${nextUp.id}`)}
-              >
-                ▶ Start consultation
+              <button onClick={() => navigate(`/consultation/${nextUp.id}`)}>
+                <PlayIcon size={12} />
+                Start consultation
               </button>
             ) : null}
           </div>
@@ -172,10 +179,32 @@ export function DashboardPage() {
       ) : null}
 
       <div className="kpi-grid">
-        <Kpi label="Today's queue" value={kpis.today} brand />
-        <Kpi label="Awaiting confirmation" value={kpis.pending} delta="Needs your review" />
-        <Kpi label="Completed (all-time)" value={kpis.completed} />
-        <Kpi label="Cancellation rate" value={`${kpis.cancelRate}%`} />
+        <Kpi
+          to="/appointments?filter=today"
+          label="Today's queue"
+          value={kpis.today}
+          delta="Appointments today"
+          brand
+        />
+        <Kpi
+          to="/appointments?filter=awaiting"
+          label="Awaiting confirmation"
+          value={kpis.pending}
+          delta="Needs your review"
+        />
+        <Kpi
+          to="/appointments?tab=completed"
+          label="Completed (all-time)"
+          value={kpis.completed}
+        />
+        <Kpi
+          to="/appointments?tab=cancelled"
+          label="Cancellation rate"
+          value={kpis.cancelRate === null ? "—" : `${kpis.cancelRate}%`}
+          {...(kpis.cancelRate === null
+            ? { hint: "Not enough data yet" }
+            : {})}
+        />
       </div>
 
       <div className="card">
@@ -188,30 +217,19 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="tabs" role="tablist">
-            <button
-              role="tab"
-              aria-selected={tab === "today"}
-              className={tab === "today" ? "active" : ""}
-              onClick={() => setTab("today")}
-            >
-              Today
-            </button>
-            <button
-              role="tab"
-              aria-selected={tab === "upcoming"}
-              className={tab === "upcoming" ? "active" : ""}
-              onClick={() => setTab("upcoming")}
-            >
-              Upcoming
-            </button>
-            <button
-              role="tab"
-              aria-selected={tab === "completed"}
-              className={tab === "completed" ? "active" : ""}
-              onClick={() => setTab("completed")}
-            >
-              Completed
-            </button>
+            {(["today", "upcoming", "completed", "cancelled"] as const).map(
+              (t) => (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  className={tab === t ? "active" : ""}
+                  onClick={() => setTab(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ),
+            )}
           </div>
         </div>
 
@@ -257,16 +275,12 @@ export function DashboardPage() {
   );
 }
 
-function rate(count: number, total: number): number {
-  if (total === 0) return 0;
-  return Math.round((count / total) * 100);
-}
-
 function tabLabel(tab: Tab): string {
   switch (tab) {
     case "today": return "scheduled today";
     case "upcoming": return "scheduled later";
     case "completed": return "completed";
+    case "cancelled": return "cancelled";
   }
 }
 function emptyTitle(tab: Tab): string {
@@ -274,6 +288,7 @@ function emptyTitle(tab: Tab): string {
     case "today": return "No appointments today";
     case "upcoming": return "Nothing scheduled yet";
     case "completed": return "No completed visits";
+    case "cancelled": return "No cancellations";
   }
 }
 function emptyDescription(tab: Tab): string {
@@ -281,26 +296,32 @@ function emptyDescription(tab: Tab): string {
     case "today": return "Your queue is clear. New bookings will appear here automatically.";
     case "upcoming": return "Patients booking with you will land in this list.";
     case "completed": return "Once you mark visits complete, they show up here.";
+    case "cancelled": return "Cancelled visits will collect here for your records.";
   }
 }
 
 function Kpi({
+  to,
   label,
   value,
   delta,
+  hint,
   brand: isBrand = false,
 }: {
+  to: string;
   label: string;
   value: number | string;
   delta?: string;
+  hint?: string;
   brand?: boolean;
 }) {
   return (
-    <div className={`kpi${isBrand ? " brand" : ""}`}>
+    <Link to={to} className={`kpi${isBrand ? " brand" : ""}`} title={hint}>
       <span className="kpi-label">{label}</span>
       <span className="kpi-value">{value}</span>
       {delta ? <span className="kpi-delta">{delta}</span> : null}
-    </div>
+      {hint && !delta ? <span className="kpi-delta">{hint}</span> : null}
+    </Link>
   );
 }
 

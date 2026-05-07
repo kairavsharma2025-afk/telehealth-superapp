@@ -83,8 +83,8 @@ export function SchedulePage() {
         color: "var(--color-info)",
         border: "1px solid #BFDBFE",
       }}>
-        Set-availability + drag-and-drop blocks land in Phase 8. Right now the
-        schedule mirrors confirmed bookings — patients drive the calendar.
+        Schedule editing is coming soon. Your calendar currently reflects
+        confirmed patient bookings.
       </div>
 
       <div

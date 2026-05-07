@@ -71,6 +71,16 @@ export function ProfilePage() {
     );
   }, [query.data, fullName, phone, dateOfBirth]);
 
+  // "Just saved" flag drives the brief "Saved ✓" affordance on the
+  // submit button. Cleared after 2s so the button reverts to its
+  // default label.
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = window.setTimeout(() => setJustSaved(false), 2000);
+    return () => window.clearTimeout(t);
+  }, [justSaved]);
+
   const save = useMutation<Profile, ApiError>({
     mutationFn: () =>
       saveProfile({
@@ -80,6 +90,7 @@ export function ProfilePage() {
       }),
     onSuccess: (data) => {
       qc.setQueryData(["me"], data);
+      setJustSaved(true);
       toast.push({ tone: "success", title: "Profile saved." });
     },
     onError: (err) => {
@@ -90,6 +101,12 @@ export function ProfilePage() {
       });
     },
   });
+
+  const saveLabel = save.isPending
+    ? "Saving…"
+    : justSaved
+      ? "Saved ✓"
+      : "Save changes";
 
   const initials = initialsFor(
     query.data ?? { fullName: null, phone: null, dateOfBirth: null },
@@ -143,9 +160,9 @@ export function ProfilePage() {
           </div>
           <button
             onClick={() => save.mutate()}
-            disabled={!dirty || save.isPending}
+            disabled={(!dirty && !justSaved) || save.isPending}
           >
-            {save.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
+            {saveLabel}
           </button>
         </div>
       </div>

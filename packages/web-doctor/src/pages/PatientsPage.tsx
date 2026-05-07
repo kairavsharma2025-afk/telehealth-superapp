@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -123,7 +124,12 @@ export function PatientsPage() {
         ) : (
           <div>
             {visible.map((p) => (
-              <div key={p.patientId} className="patient-row">
+              <Link
+                key={p.patientId}
+                to={`/patients/${p.patientId}`}
+                className="patient-row"
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
                 <div className="avatar" aria-hidden="true">
                   #{p.patientId.slice(0, 2).toUpperCase()}
                 </div>
@@ -151,7 +157,7 @@ export function PatientsPage() {
                     "—"
                   )}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

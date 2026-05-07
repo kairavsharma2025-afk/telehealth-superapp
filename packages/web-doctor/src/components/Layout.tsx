@@ -1,7 +1,16 @@
 import type { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { brand } from "@telehealth/design";
 import { useAuth } from "../lib/auth";
+import {
+  fetchMe,
+  fetchNotifications,
+  lastNameOf,
+  type MeResult,
+  type NotificationsResult,
+} from "../lib/queries";
+import type { ApiError } from "../lib/api";
 import { Logo } from "./Logo";
 
 interface LayoutProps {
@@ -16,9 +25,6 @@ interface NavItem {
   icon: ReactNode;
 }
 
-// Hospital-EMR-style sidebar grouping. The first group is the
-// clinician's day-to-day workflow; the second is record-keeping +
-// account.
 const PRIMARY_NAV: NavItem[] = [
   {
     to: "/",
@@ -61,10 +67,28 @@ const SECONDARY_NAV: NavItem[] = [
 ];
 
 export function Layout({ title, meta, children }: LayoutProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
+
+  // Pull profile + unread count once at the shell level — both screens
+  // that need them (greeting in topbar, dot on the Notifications nav
+  // row) read from the same query cache. staleTime keeps refetches
+  // calm.
+  const me = useQuery<MeResult, ApiError>({
+    queryKey: ["me"],
+    queryFn: fetchMe,
+    staleTime: 60_000,
+  });
+  const notifs = useQuery<NotificationsResult, ApiError>({
+    queryKey: ["notifications"],
+    queryFn: fetchNotifications,
+    staleTime: 30_000,
+  });
+  const unreadCount = (notifs.data?.items ?? []).filter((n) => !n.readAt).length;
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const lastName = lastNameOf(me.data?.fullName);
 
   return (
     <div className="app-shell">
@@ -85,28 +109,26 @@ export function Layout({ title, meta, children }: LayoutProps) {
 
           <span className="label">Records</span>
           {SECONDARY_NAV.map((item) => (
-            <NavItemLink key={item.to} item={item} location={location.pathname} />
+            <NavItemLink
+              key={item.to}
+              item={item}
+              location={location.pathname}
+              badge={item.to === "/notifications" ? unreadCount : 0}
+            />
           ))}
         </nav>
 
         <div className="app-sidebar-foot">
           <div className="who">{user?.email ?? "Signed out"}</div>
           {user ? <span className="role-tag">{user.role}</span> : null}
-          {/* Plain anchor to a static HTML file in public/. No React,
-              no router, no bundle — Vite serves it as-is. The page
-              clears localStorage and redirects to /login. */}
-          <a
-            href="/signout.html"
-            className="btn btn-secondary"
-            style={{
-              marginTop: 10,
-              width: "100%",
-              textDecoration: "none",
-              justifyContent: "center",
-            }}
+          <button
+            type="button"
+            onClick={logout}
+            className="btn-secondary"
+            style={{ marginTop: 10, width: "100%" }}
           >
             Sign out
-          </a>
+          </button>
         </div>
       </aside>
 
@@ -114,8 +136,7 @@ export function Layout({ title, meta, children }: LayoutProps) {
         <div>
           <div className="app-topbar-title">{title}</div>
           <div className="app-topbar-meta">
-            {greeting}
-            {user?.email ? `, Dr. ${user.email.split("@")[0]}.` : "."}
+            {greeting}, Dr. {lastName}.
           </div>
         </div>
         <div className="app-topbar-meta">{meta}</div>
@@ -129,9 +150,11 @@ export function Layout({ title, meta, children }: LayoutProps) {
 function NavItemLink({
   item,
   location,
+  badge = 0,
 }: {
   item: NavItem;
   location: string;
+  badge?: number;
 }) {
   const active =
     item.to === "/" ? location === "/" : location.startsWith(item.to);
@@ -144,7 +167,16 @@ function NavItemLink({
       <span className="icon" aria-hidden="true">
         {item.icon}
       </span>
-      {item.label}
+      <span style={{ flex: 1 }}>{item.label}</span>
+      {badge > 0 ? (
+        <span
+          className="nav-badge"
+          aria-label={`${badge} unread`}
+          title={`${badge} unread`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </NavLink>
   );
 }

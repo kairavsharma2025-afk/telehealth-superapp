@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -26,7 +26,38 @@ interface ListResult {
   items: Appointment[];
 }
 
-type Filter = "all" | "today" | "upcoming" | "completed" | "cancelled";
+type Filter =
+  | "all"
+  | "today"
+  | "upcoming"
+  | "completed"
+  | "cancelled"
+  | "awaiting";
+
+const VISIBLE_FILTERS: readonly Filter[] = [
+  "today",
+  "upcoming",
+  "completed",
+  "cancelled",
+  "all",
+];
+
+function readFilterFromQuery(params: URLSearchParams): Filter {
+  // Dashboard KPI tiles deep-link via either ?filter= or ?tab= (the
+  // older naming). Both map onto the same internal filter set.
+  const v = params.get("filter") ?? params.get("tab");
+  switch (v) {
+    case "today":
+    case "upcoming":
+    case "completed":
+    case "cancelled":
+    case "awaiting":
+    case "all":
+      return v;
+    default:
+      return "today";
+  }
+}
 
 const PAGE_SIZE = 20;
 
@@ -52,14 +83,41 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export function AppointmentsPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const query = useQuery<ListResult, ApiError>({
     queryKey: ["appointments"],
     queryFn: listAppointments,
   });
 
-  const [filter, setFilter] = useState<Filter>("today");
+  const [filter, setFilter] = useState<Filter>(() =>
+    readFilterFromQuery(searchParams),
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+
+  // Re-sync filter if the URL changes (e.g. user clicks a Dashboard
+  // KPI tile while on the page). The setState is no-op when the filter
+  // already matches.
+  useEffect(() => {
+    setFilter(readFilterFromQuery(searchParams));
+    setPage(1);
+  }, [searchParams]);
+
+  const updateFilter = (next: Filter) => {
+    setFilter(next);
+    setPage(1);
+    // Mirror selection back into the URL so the chosen tab is
+    // shareable / refresh-stable. Drop the param entirely for the
+    // default ("today") to keep the URL clean.
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("tab");
+    if (next === "today") {
+      nextParams.delete("filter");
+    } else {
+      nextParams.set("filter", next);
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const mine = useMemo(
     () => (query.data?.items ?? []).filter((a) => a.doctorId === user?.id),
@@ -80,6 +138,9 @@ export function AppointmentsPage() {
             !isSameDay(new Date(a.startAt), today) &&
             a.status !== "cancelled",
         );
+        break;
+      case "awaiting":
+        bucket = mine.filter((a) => a.status === "scheduled");
         break;
       case "completed":
         bucket = mine.filter((a) => a.status === "completed");
@@ -128,22 +189,26 @@ export function AppointmentsPage() {
             />
           </div>
           <div className="filter-pills" role="tablist">
-            {(["today", "upcoming", "completed", "cancelled", "all"] as const).map(
-              (f) => (
-                <button
-                  key={f}
-                  className={f === filter ? "active" : ""}
-                  onClick={() => {
-                    setFilter(f);
-                    setPage(1);
-                  }}
-                  role="tab"
-                  aria-selected={f === filter}
-                >
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
-                </button>
-              ),
-            )}
+            {VISIBLE_FILTERS.map((f) => (
+              <button
+                key={f}
+                className={f === filter ? "active" : ""}
+                onClick={() => updateFilter(f)}
+                role="tab"
+                aria-selected={f === filter}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+            {/* "Awaiting" isn't in the regular pill row to keep the
+                row compact, but the URL accepts ?filter=awaiting from
+                the Dashboard KPI tile and we surface it here when
+                active. */}
+            {filter === "awaiting" ? (
+              <button className="active" role="tab" aria-selected>
+                Awaiting
+              </button>
+            ) : null}
           </div>
         </div>
 

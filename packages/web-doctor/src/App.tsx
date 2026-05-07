@@ -10,6 +10,7 @@ import { AppointmentDetailPage } from "./pages/AppointmentDetailPage";
 import { ConsultationPage } from "./pages/ConsultationPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { PatientsPage } from "./pages/PatientsPage";
+import { PatientDetailPage } from "./pages/PatientDetailPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -49,6 +50,10 @@ export function App() {
               />
               <Route path="/schedule" element={<Doctor><SchedulePage /></Doctor>} />
               <Route path="/patients" element={<Doctor><PatientsPage /></Doctor>} />
+              <Route
+                path="/patients/:id"
+                element={<Doctor><PatientDetailPage /></Doctor>}
+              />
               <Route path="/documents" element={<Doctor><DocumentsPage /></Doctor>} />
               <Route
                 path="/notifications"

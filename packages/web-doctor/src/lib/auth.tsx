@@ -44,14 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Clear tokens; the pub/sub fires, AuthProvider re-renders with
+    // user=null, and RequireAuth in every protected route returns a
+    // <Navigate to="/login"> redirect. Pure SPA — no page reload.
     tokenStore.clear();
-    // Force a hard navigation to /login. The pub/sub on tokenStore +
-    // RequireAuth's <Navigate> should already redirect, but we've seen
-    // edge cases where the redirect appears to be ignored — usually
-    // when the user clicked from a route whose <Navigate> mounts in
-    // the same render cycle as a parent re-render. Hard-replacing the
-    // URL guarantees the user lands on /login with a clean app state.
-    window.location.assign("/login");
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({ user, login, logout }), [user, login, logout]);

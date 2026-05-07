@@ -5,6 +5,7 @@ import { api, type ApiError } from "../lib/api";
 import { Layout } from "../components/Layout";
 import { StatusPill, type AppointmentStatus } from "../components/StatusPill";
 import { Skeleton } from "../components/Skeleton";
+import { PlayIcon } from "../components/icons";
 import { useEscapeKey, useToast } from "../lib/toast";
 import { formatRelative } from "../lib/countdown";
 
@@ -226,7 +227,8 @@ export function AppointmentDetailPage() {
                   onClick={() => navigate(`/consultation/${a.id}`)}
                   style={{ width: "100%" }}
                 >
-                  ▶ Start consultation
+                  <PlayIcon size={12} />
+                  Start consultation
                 </button>
               ) : null}
               {canConfirm ? (
@@ -353,18 +355,16 @@ function ConfirmCancel({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{status === "scheduled" ? "Reject this booking?" : "Cancel this appointment?"}</h2>
-        <p>
-          {status === "scheduled"
-            ? "The patient will be told this slot is no longer available. They'll need to book a new one."
-            : "The patient will be notified. Cancelled appointments can't be reactivated."}
-        </p>
+        <h2>
+          {status === "scheduled" ? "Reject this booking?" : "Cancel this appointment?"}
+        </h2>
+        <p>The patient will be notified.</p>
         <div className="modal-actions">
           <button className="secondary" onClick={onClose} disabled={busy}>
-            Keep it
+            Go back
           </button>
           <button className="danger" onClick={onConfirm} disabled={busy}>
-            {status === "scheduled" ? "Reject booking" : "Cancel appointment"}
+            {status === "scheduled" ? "Yes, reject" : "Yes, cancel"}
           </button>
         </div>
       </div>
