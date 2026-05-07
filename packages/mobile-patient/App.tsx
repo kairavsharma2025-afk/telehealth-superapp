@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import {
   DefaultTheme,
   NavigationContainer,
@@ -14,13 +14,18 @@ import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/lib/auth";
 import { tokenStore } from "./src/lib/tokenStore";
 import { Logo } from "./src/components/Logo";
+import { WebShell } from "./src/components/WebShell";
+import { TabRouterProvider, useTabRouter } from "./src/navigation/router";
 import { AppointmentsScreen } from "./src/screens/AppointmentsScreen";
 import { BookScreen } from "./src/screens/BookScreen";
 import { DocumentsScreen } from "./src/screens/DocumentsScreen";
+import { HomeScreen } from "./src/screens/HomeScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { NotificationsScreen } from "./src/screens/NotificationsScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { fontWeight, palette, semantic } from "./src/theme";
+
+const isWeb = Platform.OS === "web";
 
 export type MainTabParamList = {
   Appointments: undefined;
@@ -66,10 +71,6 @@ const tabScreenOptions: BottomTabNavigationOptions = {
   tabBarInactiveTintColor: semantic.textMuted,
 };
 
-// Tab icons — small unicode glyphs in branded colour. A real app would
-// swap to react-native-svg icons, but glyphs render consistently across
-// platforms and weigh ~0KB. The active state uses the brand colour so
-// the highlight matches the label.
 function tabIcon(glyph: string) {
   function TabIcon({ color, size }: { color: string; size: number }) {
     return <Text style={{ color, fontSize: size, lineHeight: size + 2 }}>{glyph}</Text>;
@@ -77,7 +78,8 @@ function tabIcon(glyph: string) {
   return TabIcon;
 }
 
-function MainTabs() {
+// Native bottom-tab navigator. Untouched on iOS / Android / Expo Go.
+function NativeTabs() {
   return (
     <Tab.Navigator screenOptions={tabScreenOptions}>
       <Tab.Screen
@@ -109,9 +111,41 @@ function MainTabs() {
   );
 }
 
+// Web sidebar layout — mirrors the doctor portal's chrome (sidebar +
+// topbar) and routes between screens via a tiny in-memory state
+// machine instead of react-navigation.
+function WebContent() {
+  const { tab } = useTabRouter();
+  switch (tab) {
+    case "Home":
+      return <HomeScreen />;
+    case "Appointments":
+      return <AppointmentsScreen />;
+    case "Book":
+      return <BookScreen />;
+    case "Documents":
+      return <DocumentsScreen />;
+    case "Notifications":
+      return <NotificationsScreen />;
+    case "Profile":
+      return <ProfileScreen />;
+  }
+}
+
+function WebShellRoot() {
+  return (
+    <TabRouterProvider initial="Home">
+      <WebShell>
+        <WebContent />
+      </WebShell>
+    </TabRouterProvider>
+  );
+}
+
 function RootNavigator() {
   const { user } = useAuth();
-  return user ? <MainTabs /> : <LoginScreen />;
+  if (!user) return <LoginScreen />;
+  return isWeb ? <WebShellRoot /> : <NativeTabs />;
 }
 
 export default function App() {
