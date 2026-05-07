@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -14,19 +14,35 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { api, ApiError } from "../lib/api";
-import { formatTimeRange } from "../lib/format";
 import { fontWeight, palette, radius, semantic, space } from "../theme";
 
 const isWeb = Platform.OS === "web";
 
-interface Doctor {
+const SPECIALTIES = [
+  "General Medicine",
+  "Cardiology",
+  "Dermatology",
+  "Pediatrics",
+  "Psychiatry",
+  "Orthopedics",
+  "Gynecology",
+  "ENT",
+] as const;
+
+const DURATIONS = [30, 45, 60] as const;
+type Duration = (typeof DURATIONS)[number];
+
+interface AvailableDoctor {
   id: string;
   fullName: string | null;
   specialty: string | null;
+  suggestedStartAt: string;
+  suggestedEndAt: string;
 }
 
-interface DoctorsResult {
-  items: Doctor[];
+interface AvailabilityResult {
+  window: { start: string; end: string; duration: number };
+  items: AvailableDoctor[];
 }
 
 interface CreatedAppointment {
@@ -35,10 +51,18 @@ interface CreatedAppointment {
   endAt: string;
 }
 
-const SLOT_MINUTES = 30;
-
-function listDoctors(): Promise<DoctorsResult> {
-  return api<DoctorsResult>("/users/doctors");
+function fetchAvailability(params: {
+  windowStart: Date;
+  windowEnd: Date;
+  specialty: string | null;
+  duration: Duration;
+}): Promise<AvailabilityResult> {
+  const qs = new URLSearchParams();
+  qs.set("start", params.windowStart.toISOString());
+  qs.set("end", params.windowEnd.toISOString());
+  qs.set("duration", String(params.duration));
+  if (params.specialty) qs.set("specialty", params.specialty);
+  return api<AvailabilityResult>(`/users/doctors/availability?${qs.toString()}`);
 }
 
 function bookAppointment(input: {
@@ -63,69 +87,98 @@ function nextRoundedHour(): Date {
   return d;
 }
 
+function defaultWindowEnd(start: Date): Date {
+  const d = new Date(start);
+  d.setHours(d.getHours() + 8);
+  return d;
+}
+
+const dateFmt = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+const timeFmt = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 export function BookScreen() {
   const qc = useQueryClient();
 
-  const doctors = useQuery<DoctorsResult, ApiError>({
-    queryKey: ["doctors"],
-    queryFn: listDoctors,
-  });
+  const [windowStart, setWindowStart] = useState<Date>(() => nextRoundedHour());
+  const [windowEnd, setWindowEnd] = useState<Date>(() =>
+    defaultWindowEnd(nextRoundedHour()),
+  );
+  const [specialty, setSpecialty] = useState<string | null>(null);
+  const [duration, setDuration] = useState<Duration>(30);
+  const [pickingForNative, setPickingForNative] = useState<
+    "start" | "end" | null
+  >(null);
 
-  const [doctorId, setDoctorId] = useState<string | null>(null);
-  const [startAt, setStartAt] = useState<Date>(nextRoundedHour);
+  const [doctor, setDoctor] = useState<AvailableDoctor | null>(null);
   const [reason, setReason] = useState("");
-  const [pickerMode, setPickerMode] = useState<"date" | "time" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(null);
 
-  // Group doctors by specialty for the filter pills + sectioned list.
-  // "Other" bucket catches doctors with no specialty so the UI never
-  // silently drops rows.
-  const grouped = useMemo(() => {
-    const items = doctors.data?.items ?? [];
-    const map = new Map<string, Doctor[]>();
-    for (const d of items) {
-      const key = d.specialty ?? "Other";
-      const list = map.get(key) ?? [];
-      list.push(d);
-      map.set(key, list);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [doctors.data]);
+  // Search key — incremented when the user hits "Find availability".
+  // Driving the query off this rather than the form fields keeps results
+  // stable while they tweak the window, and avoids spamming the backend
+  // on every keystroke in the web datetime input.
+  const [searchKey, setSearchKey] = useState(0);
 
-  const specialties = useMemo(() => grouped.map(([k]) => k), [grouped]);
-  const visible = specialtyFilter
-    ? grouped.filter(([k]) => k === specialtyFilter)
-    : grouped;
-
-  const endAt = new Date(startAt.getTime() + SLOT_MINUTES * 60_000);
+  const availability = useQuery<AvailabilityResult, ApiError>({
+    queryKey: [
+      "availability",
+      searchKey,
+      windowStart.toISOString(),
+      windowEnd.toISOString(),
+      specialty,
+      duration,
+    ],
+    queryFn: () => fetchAvailability({ windowStart, windowEnd, specialty, duration }),
+    enabled: searchKey > 0,
+  });
 
   const onPickerChange = useCallback(
-    (event: DateTimePickerEvent, selected?: Date) => {
-      // Android dismisses the picker on every interaction; iOS spinners
-      // fire `set` on each scroll. Closing here works for both.
-      setPickerMode(null);
-      if (event.type === "set" && selected) setStartAt(selected);
-    },
-    [],
+    (which: "start" | "end") =>
+      (event: DateTimePickerEvent, selected?: Date) => {
+        setPickingForNative(null);
+        if (event.type === "set" && selected) {
+          if (which === "start") {
+            setWindowStart(selected);
+            if (selected.getTime() >= windowEnd.getTime()) {
+              setWindowEnd(defaultWindowEnd(selected));
+            }
+          } else {
+            setWindowEnd(selected);
+          }
+        }
+      },
+    [windowEnd],
   );
 
   const book = useMutation<CreatedAppointment, ApiError, void>({
     mutationFn: () => {
-      if (!doctorId) throw new ApiError(400, "Pick a doctor first");
+      if (!doctor) throw new ApiError(400, "Pick a doctor first");
       return bookAppointment({
-        doctorId,
-        startAt: startAt.toISOString(),
-        endAt: endAt.toISOString(),
+        doctorId: doctor.id,
+        startAt: doctor.suggestedStartAt,
+        endAt: doctor.suggestedEndAt,
         reason: reason.trim() || undefined,
       });
     },
     onSuccess: (created) => {
       setSubmitError(null);
-      setSuccess(`Booked ${formatTimeRange(created.startAt, created.endAt)}`);
+      setSuccess(
+        `Booked ${dateFmt.format(new Date(created.startAt))} – ${timeFmt.format(new Date(created.endAt))}.`,
+      );
       setReason("");
+      setDoctor(null);
       void qc.invalidateQueries({ queryKey: ["appointments"] });
+      void qc.invalidateQueries({ queryKey: ["availability"] });
     },
     onError: (err) => {
       setSuccess(null);
@@ -133,173 +186,269 @@ export function BookScreen() {
     },
   });
 
+  const items = availability.data?.items ?? [];
+
   return (
     <ScrollView
       style={styles.root}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.h1}>Book an appointment</Text>
+      <Text style={styles.h1}>Find a slot that fits you</Text>
+      <Text style={styles.lede}>
+        Pick when you&apos;re free and what kind of doctor you need — we&apos;ll
+        show who&apos;s available.
+      </Text>
 
-      <Text style={styles.sectionLabel}>Doctor</Text>
-      {doctors.isPending ? (
-        <ActivityIndicator color="#2563eb" />
-      ) : doctors.isError ? (
-        <Text style={styles.error}>
-          Couldn&apos;t load doctors — {doctors.error.message}
-        </Text>
-      ) : grouped.length === 0 ? (
-        <Text style={styles.muted}>No doctors available.</Text>
-      ) : (
-        <>
-          {/* Specialty filter pills — tap one to narrow, tap again to clear. */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-          >
-            <TouchableOpacity
-              style={[
-                styles.filterPill,
-                !specialtyFilter && styles.filterPillActive,
-              ]}
-              onPress={() => setSpecialtyFilter(null)}
-            >
-              <Text style={styles.filterPillText}>All</Text>
-            </TouchableOpacity>
-            {specialties.map((s) => (
-              <TouchableOpacity
-                key={s}
-                style={[
-                  styles.filterPill,
-                  specialtyFilter === s && styles.filterPillActive,
-                ]}
-                onPress={() =>
-                  setSpecialtyFilter((prev) => (prev === s ? null : s))
-                }
-              >
-                <Text style={styles.filterPillText}>{s}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Sectioned doctor list, scrolls inside a capped pane so the
-              date/time + Book button below stay reachable. */}
-          <ScrollView style={styles.doctorList} nestedScrollEnabled>
-            {visible.map(([specialty, docs]) => (
-              <View key={specialty}>
-                <Text style={styles.sectionHeader}>
-                  {specialty} · {docs.length}
-                </Text>
-                {docs.map((item) => {
-                  const selected = item.id === doctorId;
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => setDoctorId(item.id)}
-                      style={[
-                        styles.doctorRow,
-                        selected && styles.doctorRowSelected,
-                      ]}
-                    >
-                      <Text style={styles.doctorName}>
-                        {item.fullName ?? "Unnamed doctor"}
-                      </Text>
-                      <Text style={styles.doctorId}>
-                        {item.id.slice(0, 8)}…
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </ScrollView>
-        </>
-      )}
-
-      <Text style={styles.sectionLabel}>When</Text>
-      {isWeb ? (
-        // datetimepicker has no web rendering. Use a single native HTML
-        // datetime-local input via a hidden TextInput hack — simpler to
-        // just inject the input directly. We render it as a styled
-        // wrapper around an <input>.
-        <WebDateTimeInput value={startAt} onChange={setStartAt} />
-      ) : (
-        <View style={styles.pickerRow}>
-          <TouchableOpacity
-            style={styles.pickerButton}
-            onPress={() => setPickerMode("date")}
-          >
-            <Text style={styles.pickerButtonLabel}>Date</Text>
-            <Text style={styles.pickerButtonValue}>
-              {startAt.toLocaleDateString(undefined, {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-              })}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.pickerButton}
-            onPress={() => setPickerMode("time")}
-          >
-            <Text style={styles.pickerButtonLabel}>Time</Text>
-            <Text style={styles.pickerButtonValue}>
-              {startAt.toLocaleTimeString(undefined, {
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <Text style={styles.muted}>Slot is {SLOT_MINUTES} minutes.</Text>
-
-      {!isWeb && pickerMode ? (
+      <Text style={styles.sectionLabel}>Your availability window</Text>
+      <View style={styles.row}>
+        <DateTimeField
+          label="Earliest"
+          value={windowStart}
+          onPress={() => setPickingForNative("start")}
+          onWebChange={(d) => {
+            setWindowStart(d);
+            if (d.getTime() >= windowEnd.getTime()) {
+              setWindowEnd(defaultWindowEnd(d));
+            }
+          }}
+        />
+        <DateTimeField
+          label="Latest"
+          value={windowEnd}
+          onPress={() => setPickingForNative("end")}
+          onWebChange={(d) => setWindowEnd(d)}
+        />
+      </View>
+      {!isWeb && pickingForNative ? (
         <DateTimePicker
-          value={startAt}
-          mode={pickerMode}
-          onChange={onPickerChange}
+          value={pickingForNative === "start" ? windowStart : windowEnd}
+          mode="datetime"
+          onChange={onPickerChange(pickingForNative)}
           display={Platform.OS === "ios" ? "spinner" : "default"}
-          minimumDate={new Date()}
+          minimumDate={pickingForNative === "end" ? windowStart : new Date()}
         />
       ) : null}
 
-      <Text style={styles.sectionLabel}>Reason (optional)</Text>
-      <TextInput
-        value={reason}
-        onChangeText={setReason}
-        multiline
-        numberOfLines={3}
-        style={styles.reasonInput}
-        placeholder="e.g. Follow-up on lab results"
-        placeholderTextColor={semantic.textSubtle}
-      />
+      <Text style={styles.sectionLabel}>Duration</Text>
+      <View style={styles.segmented}>
+        {DURATIONS.map((d) => {
+          const active = d === duration;
+          return (
+            <TouchableOpacity
+              key={d}
+              style={[styles.segment, active && styles.segmentActive]}
+              onPress={() => setDuration(d)}
+            >
+              <Text
+                style={[styles.segmentText, active && styles.segmentTextActive]}
+              >
+                {d} min
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
-      {submitError ? <Text style={styles.error}>{submitError}</Text> : null}
-      {success ? <Text style={styles.success}>{success}</Text> : null}
+      <Text style={styles.sectionLabel}>Specialty</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.specRow}
+      >
+        <SpecialtyPill
+          label="Any"
+          active={specialty === null}
+          onPress={() => setSpecialty(null)}
+        />
+        {SPECIALTIES.map((s) => (
+          <SpecialtyPill
+            key={s}
+            label={s}
+            active={specialty === s}
+            onPress={() => setSpecialty((cur) => (cur === s ? null : s))}
+          />
+        ))}
+      </ScrollView>
 
       <TouchableOpacity
-        style={[
-          styles.submitButton,
-          (!doctorId || book.isPending) && styles.submitButtonDisabled,
-        ]}
-        disabled={!doctorId || book.isPending}
-        onPress={() => book.mutate()}
+        style={[styles.searchBtn, availability.isFetching && styles.searchBtnBusy]}
+        onPress={() => {
+          setDoctor(null);
+          setSuccess(null);
+          setSubmitError(null);
+          setSearchKey((k) => k + 1);
+        }}
+        disabled={availability.isFetching}
       >
-        {book.isPending ? (
+        {availability.isFetching ? (
           <ActivityIndicator color={palette.white} />
         ) : (
-          <Text style={styles.submitButtonText}>Book appointment</Text>
+          <Text style={styles.searchBtnText}>
+            {searchKey === 0 ? "Find available doctors" : "Refresh results"}
+          </Text>
         )}
       </TouchableOpacity>
+
+      {availability.isError ? (
+        <Text style={styles.errorMsg}>{availability.error.message}</Text>
+      ) : null}
+
+      {searchKey > 0 && !availability.isFetching && !availability.isError ? (
+        <View style={styles.resultsHeader}>
+          <Text style={styles.resultsCount}>
+            {items.length} {items.length === 1 ? "doctor" : "doctors"} available
+          </Text>
+          <Text style={styles.resultsHint}>
+            Sorted by earliest slot in your window
+          </Text>
+        </View>
+      ) : null}
+
+      {searchKey > 0 && !availability.isFetching && items.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>Nothing fits in that window</Text>
+          <Text style={styles.emptyDesc}>
+            Try a wider window, a different specialty, or a shorter duration.
+          </Text>
+        </View>
+      ) : null}
+
+      {items.slice(0, 30).map((d) => {
+        const selected = d.id === doctor?.id;
+        const start = new Date(d.suggestedStartAt);
+        const end = new Date(d.suggestedEndAt);
+        return (
+          <TouchableOpacity
+            key={d.id}
+            style={[styles.docCard, selected && styles.docCardSelected]}
+            onPress={() => setDoctor(d)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.docMain}>
+              <Text style={styles.docName}>
+                {d.fullName ?? "Unnamed doctor"}
+              </Text>
+              <Text style={styles.docSpec}>{d.specialty ?? "—"}</Text>
+            </View>
+            <View style={styles.docSlot}>
+              <Text style={styles.docSlotLabel}>Earliest slot</Text>
+              <Text style={styles.docSlotTime}>{dateFmt.format(start)}</Text>
+              <Text style={styles.docSlotRange}>
+                {timeFmt.format(start)} – {timeFmt.format(end)}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+
+      {doctor ? (
+        <View style={styles.confirmBox}>
+          <Text style={styles.confirmHeading}>
+            Confirm with {doctor.fullName ?? "this doctor"}
+          </Text>
+          <Text style={styles.confirmSubhead}>
+            {dateFmt.format(new Date(doctor.suggestedStartAt))} –{" "}
+            {timeFmt.format(new Date(doctor.suggestedEndAt))} · {duration} min
+          </Text>
+
+          <Text style={styles.sectionLabel}>Reason (optional)</Text>
+          <TextInput
+            value={reason}
+            onChangeText={setReason}
+            multiline
+            numberOfLines={3}
+            style={styles.reasonInput}
+            placeholder="e.g. Follow-up on lab results"
+            placeholderTextColor={semantic.textSubtle}
+          />
+
+          {submitError ? <Text style={styles.errorMsg}>{submitError}</Text> : null}
+
+          <TouchableOpacity
+            style={[styles.bookBtn, book.isPending && styles.bookBtnBusy]}
+            disabled={book.isPending}
+            onPress={() => book.mutate()}
+          >
+            {book.isPending ? (
+              <ActivityIndicator color={palette.white} />
+            ) : (
+              <Text style={styles.bookBtnText}>Book this slot</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {success ? (
+        <View style={styles.successBox}>
+          <Text style={styles.successText}>{success}</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
+function DateTimeField(props: {
+  label: string;
+  value: Date;
+  onPress: () => void;
+  onWebChange: (d: Date) => void;
+}) {
+  if (isWeb) {
+    return (
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>{props.label}</Text>
+        <TextInput
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          {...({ type: "datetime-local" } as any)}
+          value={toLocalDatetimeString(props.value)}
+          onChangeText={(text) => {
+            const next = new Date(text);
+            if (!Number.isNaN(next.getTime())) props.onWebChange(next);
+          }}
+          style={styles.fieldInput}
+        />
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity style={styles.field} onPress={props.onPress}>
+      <Text style={styles.fieldLabel}>{props.label}</Text>
+      <Text style={styles.fieldValue}>{dateFmt.format(props.value)}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function SpecialtyPill({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.specPill, active && styles.specPillActive]}
+    >
+      <Text style={[styles.specPillText, active && styles.specPillTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function toLocalDatetimeString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: semantic.bg },
-  content: { padding: space[4], gap: 6, paddingBottom: space[9] },
+  content: { padding: space[4], paddingBottom: space[10], gap: space[2] },
+
   h1: {
     color: semantic.text,
     fontSize: 22,
@@ -309,7 +458,7 @@ const styles = StyleSheet.create({
   lede: {
     color: semantic.textMuted,
     fontSize: 14,
-    marginBottom: space[2],
+    marginBottom: space[3],
     lineHeight: 20,
   },
   sectionLabel: {
@@ -321,13 +470,72 @@ const styles = StyleSheet.create({
     marginTop: space[5],
     marginBottom: space[2],
   },
-  filterRow: {
+
+  row: { flexDirection: "row", gap: space[3] },
+  field: {
+    flex: 1,
+    backgroundColor: semantic.surface,
+    borderColor: semantic.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: space[3],
+  },
+  fieldLabel: {
+    color: semantic.textMuted,
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  fieldValue: {
+    color: semantic.text,
+    fontSize: 15,
+    marginTop: 4,
+    fontWeight: fontWeight.semibold,
+  },
+  fieldInput: {
+    color: semantic.text,
+    fontSize: 15,
+    marginTop: 4,
+    fontWeight: fontWeight.semibold,
+    paddingVertical: 0,
+  },
+
+  segmented: {
+    flexDirection: "row",
+    backgroundColor: semantic.surfaceMuted,
+    padding: 4,
+    borderRadius: radius.md,
+    gap: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: "center",
+    borderRadius: 6,
+  },
+  segmentActive: {
+    backgroundColor: semantic.surface,
+    borderWidth: 1,
+    borderColor: semantic.border,
+  },
+  segmentText: {
+    color: semantic.textMuted,
+    fontSize: 13,
+    fontWeight: fontWeight.medium,
+  },
+  segmentTextActive: {
+    color: semantic.text,
+    fontWeight: fontWeight.semibold,
+  },
+
+  specRow: {
     flexDirection: "row",
     gap: 6,
     paddingVertical: 4,
     paddingHorizontal: 2,
   },
-  filterPill: {
+  specPill: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: radius.full,
@@ -335,83 +543,141 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: semantic.border,
   },
-  filterPillActive: {
+  specPillActive: {
     backgroundColor: palette.brand700,
     borderColor: palette.brand700,
   },
-  filterPillText: {
+  specPillText: {
     color: semantic.text,
     fontSize: 13,
     fontWeight: fontWeight.medium,
   },
-  doctorList: {
-    maxHeight: 300,
-    borderRadius: radius.lg,
-    backgroundColor: semantic.surface,
-    borderWidth: 1,
-    borderColor: semantic.border,
-    paddingHorizontal: space[2],
-    paddingVertical: space[2],
+  specPillTextActive: {
+    color: palette.white,
+    fontWeight: fontWeight.semibold,
   },
-  sectionHeader: {
-    color: palette.brand700,
-    fontSize: 11,
-    fontWeight: fontWeight.bold,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginTop: space[2],
-    marginBottom: space[1],
-    paddingHorizontal: space[2],
-  },
-  doctorRow: {
-    backgroundColor: semantic.surface,
-    padding: space[3],
+
+  searchBtn: {
+    backgroundColor: palette.brand700,
+    paddingVertical: 14,
     borderRadius: radius.md,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: "transparent",
+    alignItems: "center",
+    marginTop: space[5],
   },
-  doctorRowSelected: {
-    backgroundColor: palette.brand50,
-    borderColor: palette.brand700,
+  searchBtnBusy: { backgroundColor: palette.slate400 },
+  searchBtnText: {
+    color: palette.white,
+    fontSize: 16,
+    fontWeight: fontWeight.semibold,
   },
-  doctorName: {
+
+  resultsHeader: {
+    marginTop: space[5],
+    marginBottom: space[2],
+  },
+  resultsCount: {
     color: semantic.text,
     fontSize: 15,
     fontWeight: fontWeight.semibold,
   },
-  doctorId: {
-    color: semantic.textSubtle,
+  resultsHint: {
+    color: semantic.textMuted,
     fontSize: 12,
     marginTop: 2,
   },
-  pickerRow: {
-    flexDirection: "row",
-    gap: space[3],
+
+  empty: {
+    marginTop: space[5],
+    padding: space[6],
+    alignItems: "center",
+    backgroundColor: semantic.surfaceMuted,
+    borderRadius: radius.lg,
+    gap: 4,
   },
-  pickerButton: {
-    flex: 1,
+  emptyTitle: {
+    color: semantic.text,
+    fontSize: 15,
+    fontWeight: fontWeight.semibold,
+  },
+  emptyDesc: {
+    color: semantic.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+    maxWidth: 280,
+    lineHeight: 18,
+  },
+
+  docCard: {
+    flexDirection: "row",
     backgroundColor: semantic.surface,
-    padding: space[3],
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: semantic.border,
+    padding: space[4],
+    gap: space[3],
+    marginTop: space[2],
+    alignItems: "center",
   },
-  pickerButtonLabel: {
-    color: semantic.textMuted,
-    fontSize: 11,
+  docCardSelected: {
+    backgroundColor: palette.brand50,
+    borderColor: palette.brand700,
+  },
+  docMain: { flex: 1, gap: 2 },
+  docName: {
+    color: semantic.text,
+    fontSize: 15,
+    fontWeight: fontWeight.semibold,
+  },
+  docSpec: {
+    color: palette.brand700,
+    fontSize: 12,
     fontWeight: fontWeight.semibold,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  pickerButtonValue: {
-    color: semantic.text,
-    fontSize: 16,
-    marginTop: 4,
-    fontWeight: fontWeight.semibold,
+  docSlot: {
+    alignItems: "flex-end",
   },
-  reasonInput: {
+  docSlotLabel: {
+    color: semantic.textMuted,
+    fontSize: 10,
+    fontWeight: fontWeight.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  docSlotTime: {
+    color: semantic.text,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+    marginTop: 2,
+  },
+  docSlotRange: {
+    color: semantic.textMuted,
+    fontSize: 11,
+    marginTop: 1,
+  },
+
+  confirmBox: {
+    marginTop: space[6],
+    padding: space[4],
     backgroundColor: semantic.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.brand700,
+  },
+  confirmHeading: {
+    color: semantic.text,
+    fontSize: 17,
+    fontWeight: fontWeight.bold,
+  },
+  confirmSubhead: {
+    color: semantic.textMuted,
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  reasonInput: {
+    backgroundColor: semantic.bg,
     color: semantic.text,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -421,59 +687,35 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     fontSize: 15,
   },
-  muted: {
-    color: semantic.textMuted,
-    fontSize: 13,
-  },
-  error: {
+  errorMsg: {
     color: semantic.danger,
-    marginTop: space[2],
     fontSize: 13,
-  },
-  success: {
-    color: semantic.success,
     marginTop: space[2],
-    fontSize: 13,
   },
-  submitButton: {
+  bookBtn: {
     backgroundColor: palette.brand700,
     paddingVertical: 14,
     borderRadius: radius.md,
     alignItems: "center",
-    marginTop: space[4],
+    marginTop: space[3],
   },
-  submitButtonDisabled: {
-    backgroundColor: palette.slate400,
-  },
-  submitButtonText: {
+  bookBtnBusy: { backgroundColor: palette.slate400 },
+  bookBtnText: {
     color: palette.white,
     fontSize: 16,
     fontWeight: fontWeight.semibold,
   },
+  successBox: {
+    marginTop: space[5],
+    backgroundColor: "#DCFCE7",
+    borderColor: "#86EFAC",
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: space[3],
+  },
+  successText: {
+    color: "#15803D",
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
 });
-
-// Local datetime input for the web platform. Casts to `any` once at the
-// boundary because react-native-web does forward `type` to the underlying
-// <input>, but TextInput's TS surface doesn't expose it.
-function WebDateTimeInput(props: { value: Date; onChange: (d: Date) => void }) {
-  const local = toLocalDatetimeString(props.value);
-  return (
-    <TextInput
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      {...({ type: "datetime-local" } as any)}
-      value={local}
-      onChangeText={(text) => {
-        const next = new Date(text);
-        if (!Number.isNaN(next.getTime())) props.onChange(next);
-      }}
-      style={styles.reasonInput}
-    />
-  );
-}
-
-function toLocalDatetimeString(d: Date): string {
-  // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in local time,
-  // not UTC. toISOString would produce UTC.
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
