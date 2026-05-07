@@ -1,21 +1,33 @@
-import { useState, type FormEvent } from "react";
-import { useLocation, useNavigate, Navigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { brand } from "@telehealth/design";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Logo } from "../components/Logo";
 
 export function LoginPage() {
-  const { user, login } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (user) {
+  // Hard-fallback sign-out path: if anyone navigates here with
+  // ?auth_clear=1 (e.g. the sidebar's anchor href), wipe credentials
+  // even if the React click handler that would have done it never
+  // fired. Strips the param after so a refresh doesn't loop.
+  useEffect(() => {
+    if (searchParams.get("auth_clear") === "1") {
+      logout();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, logout, setSearchParams]);
+
+  if (user && searchParams.get("auth_clear") !== "1") {
     const from = (location.state as { from?: string } | null)?.from ?? "/";
     return <Navigate to={from} replace />;
   }

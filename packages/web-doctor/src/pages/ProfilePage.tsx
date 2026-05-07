@@ -182,9 +182,17 @@ export function ProfilePage() {
               appointments.
             </div>
           </div>
-          <button className="danger" onClick={logout}>
+          <a
+            href="/login?auth_clear=1"
+            onClick={(e) => {
+              e.preventDefault();
+              logout();
+            }}
+            className="btn btn-danger"
+            style={{ textDecoration: "none" }}
+          >
             Sign out
-          </button>
+          </a>
         </div>
       </div>
     </Layout>
