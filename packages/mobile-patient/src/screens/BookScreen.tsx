@@ -15,6 +15,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { api, ApiError } from "../lib/api";
 import { formatTimeRange } from "../lib/format";
+import { fontWeight, palette, radius, semantic, space } from "../theme";
 
 const isWeb = Platform.OS === "web";
 
@@ -145,7 +146,7 @@ export function BookScreen() {
         <ActivityIndicator color="#2563eb" />
       ) : doctors.isError ? (
         <Text style={styles.error}>
-          Failed to load doctors: {doctors.error.message}
+          Couldn&apos;t load doctors — {doctors.error.message}
         </Text>
       ) : grouped.length === 0 ? (
         <Text style={styles.muted}>No doctors available.</Text>
@@ -272,7 +273,7 @@ export function BookScreen() {
         numberOfLines={3}
         style={styles.reasonInput}
         placeholder="e.g. Follow-up on lab results"
-        placeholderTextColor="#475569"
+        placeholderTextColor={semantic.textSubtle}
       />
 
       {submitError ? <Text style={styles.error}>{submitError}</Text> : null}
@@ -287,7 +288,7 @@ export function BookScreen() {
         onPress={() => book.mutate()}
       >
         {book.isPending ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={palette.white} />
         ) : (
           <Text style={styles.submitButtonText}>Book appointment</Text>
         )}
@@ -297,144 +298,157 @@ export function BookScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#0f172a",
-  },
-  content: {
-    padding: 16,
-    gap: 8,
-    paddingBottom: 48,
-  },
+  root: { flex: 1, backgroundColor: semantic.bg },
+  content: { padding: space[4], gap: 6, paddingBottom: space[9] },
   h1: {
-    color: "#f8fafc",
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
+    color: semantic.text,
+    fontSize: 22,
+    fontWeight: fontWeight.bold,
+    letterSpacing: -0.4,
+  },
+  lede: {
+    color: semantic.textMuted,
+    fontSize: 14,
+    marginBottom: space[2],
+    lineHeight: 20,
   },
   sectionLabel: {
-    color: "#94a3b8",
-    fontSize: 12,
+    color: semantic.textMuted,
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 0.6,
     textTransform: "uppercase",
-    marginTop: 16,
-    marginBottom: 6,
+    marginTop: space[5],
+    marginBottom: space[2],
   },
   filterRow: {
     flexDirection: "row",
     gap: 6,
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 2,
   },
   filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#1e293b",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    backgroundColor: semantic.surface,
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: semantic.border,
   },
   filterPillActive: {
-    backgroundColor: "#2563eb",
-    borderColor: "#60a5fa",
+    backgroundColor: palette.brand700,
+    borderColor: palette.brand700,
   },
   filterPillText: {
-    color: "#f8fafc",
+    color: semantic.text,
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: fontWeight.medium,
   },
   doctorList: {
-    maxHeight: 280,
-    borderRadius: 8,
-    backgroundColor: "#0b1220",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    maxHeight: 300,
+    borderRadius: radius.lg,
+    backgroundColor: semantic.surface,
+    borderWidth: 1,
+    borderColor: semantic.border,
+    paddingHorizontal: space[2],
+    paddingVertical: space[2],
   },
   sectionHeader: {
-    color: "#60a5fa",
-    fontSize: 12,
-    fontWeight: "700",
+    color: palette.brand700,
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 8,
-    marginBottom: 4,
-    paddingHorizontal: 4,
+    letterSpacing: 0.6,
+    marginTop: space[2],
+    marginBottom: space[1],
+    paddingHorizontal: space[2],
   },
   doctorRow: {
-    backgroundColor: "#1e293b",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 6,
+    backgroundColor: semantic.surface,
+    padding: space[3],
+    borderRadius: radius.md,
+    marginBottom: 4,
     borderWidth: 1,
     borderColor: "transparent",
   },
   doctorRowSelected: {
-    borderColor: "#2563eb",
+    backgroundColor: palette.brand50,
+    borderColor: palette.brand700,
   },
   doctorName: {
-    color: "#f8fafc",
+    color: semantic.text,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: fontWeight.semibold,
   },
   doctorId: {
-    color: "#64748b",
+    color: semantic.textSubtle,
     fontSize: 12,
     marginTop: 2,
   },
   pickerRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: space[3],
   },
   pickerButton: {
     flex: 1,
-    backgroundColor: "#1e293b",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: semantic.surface,
+    padding: space[3],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: semantic.border,
   },
   pickerButtonLabel: {
-    color: "#94a3b8",
+    color: semantic.textMuted,
     fontSize: 11,
+    fontWeight: fontWeight.semibold,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   pickerButtonValue: {
-    color: "#f8fafc",
+    color: semantic.text,
     fontSize: 16,
-    marginTop: 2,
-    fontWeight: "600",
+    marginTop: 4,
+    fontWeight: fontWeight.semibold,
   },
   reasonInput: {
-    backgroundColor: "#1e293b",
-    color: "#f8fafc",
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 70,
+    backgroundColor: semantic.surface,
+    color: semantic.text,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: semantic.borderStrong,
+    padding: space[3],
+    minHeight: 80,
     textAlignVertical: "top",
+    fontSize: 15,
   },
   muted: {
-    color: "#64748b",
+    color: semantic.textMuted,
     fontSize: 13,
   },
   error: {
-    color: "#f87171",
-    marginTop: 8,
+    color: semantic.danger,
+    marginTop: space[2],
+    fontSize: 13,
   },
   success: {
-    color: "#34d399",
-    marginTop: 8,
+    color: semantic.success,
+    marginTop: space[2],
+    fontSize: 13,
   },
   submitButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: palette.brand700,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: radius.md,
     alignItems: "center",
-    marginTop: 16,
+    marginTop: space[4],
   },
   submitButtonDisabled: {
-    backgroundColor: "#475569",
+    backgroundColor: palette.slate400,
   },
   submitButtonText: {
-    color: "#fff",
+    color: palette.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: fontWeight.semibold,
   },
 });
 

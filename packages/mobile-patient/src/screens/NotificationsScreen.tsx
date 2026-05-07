@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
+import { fontWeight, palette, radius, semantic, space } from "../theme";
+import { ScreenHeader } from "../components/ScreenHeader";
 
 type Channel = "email" | "sms" | "push";
 type Status = "pending" | "sent" | "failed";
@@ -31,10 +33,10 @@ function listNotifications(): Promise<ListResult> {
   return api<ListResult>("/notifications");
 }
 
-const STATUS_COLOR: Record<Status, string> = {
-  pending: "#f59e0b",
-  sent: "#10b981",
-  failed: "#ef4444",
+const STATUS_COLOR: Record<Status, { bg: string; fg: string }> = {
+  pending: { bg: "#FEF3C7", fg: "#D97706" },
+  sent: { bg: "#DCFCE7", fg: "#15803D" },
+  failed: { bg: "#FEE2E2", fg: "#B91C1C" },
 };
 
 const CHANNEL_ICON: Record<Channel, string> = {
@@ -62,13 +64,14 @@ export function NotificationsScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Notifications</Text>
-      </View>
+      <ScreenHeader
+        title="Notifications"
+        subtitle={`${items.length} ${items.length === 1 ? "message" : "messages"}`}
+      />
 
       {query.isPending ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#2563eb" />
+          <ActivityIndicator color={palette.brand700} />
         </View>
       ) : query.isError ? (
         <View style={styles.center}>
@@ -87,7 +90,7 @@ export function NotificationsScreen() {
             <RefreshControl
               refreshing={query.isFetching && !query.isPending}
               onRefresh={() => void query.refetch()}
-              tintColor="#2563eb"
+              tintColor={palette.brand700}
             />
           }
           renderItem={({ item }) => (
@@ -109,10 +112,14 @@ export function NotificationsScreen() {
               <View
                 style={[
                   styles.pill,
-                  { backgroundColor: STATUS_COLOR[item.status] },
+                  { backgroundColor: STATUS_COLOR[item.status].bg },
                 ]}
               >
-                <Text style={styles.pillText}>{item.status}</Text>
+                <Text
+                  style={[styles.pillText, { color: STATUS_COLOR[item.status].fg }]}
+                >
+                  {item.status}
+                </Text>
               </View>
             </View>
           )}
@@ -123,38 +130,52 @@ export function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0f172a" },
-  header: {
-    padding: 16,
-    borderBottomColor: "#1e293b",
-    borderBottomWidth: 1,
+  root: { flex: 1, backgroundColor: semantic.bg },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: space[6],
   },
-  title: { color: "#f8fafc", fontSize: 20, fontWeight: "700" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  error: { color: "#f87171", textAlign: "center" },
-  muted: { color: "#64748b", fontSize: 14 },
-  list: { padding: 16, gap: 10 },
+  error: { color: semantic.danger, textAlign: "center" },
+  muted: { color: semantic.textMuted, fontSize: 14 },
+  list: { padding: space[4], gap: space[3] },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
-    borderRadius: 10,
-    padding: 12,
-    gap: 10,
+    backgroundColor: semantic.surface,
+    borderRadius: radius.lg,
+    padding: space[3],
+    gap: space[3],
+    borderWidth: 1,
+    borderColor: semantic.border,
   },
   channelBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#0f172a",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: palette.brand50,
     justifyContent: "center",
     alignItems: "center",
   },
-  channelIcon: { color: "#60a5fa", fontSize: 18 },
+  channelIcon: { color: palette.brand700, fontSize: 18 },
   rowMain: { flex: 1 },
-  template: { color: "#f8fafc", fontSize: 15, fontWeight: "600" },
-  when: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
-  errorMessage: { color: "#fca5a5", fontSize: 12, marginTop: 4 },
-  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  pillText: { color: "#fff", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  template: {
+    color: semantic.text,
+    fontSize: 15,
+    fontWeight: fontWeight.semibold,
+  },
+  when: { color: semantic.textMuted, fontSize: 12, marginTop: 2 },
+  errorMessage: { color: semantic.danger, fontSize: 12, marginTop: 4 },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  pillText: {
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
 });

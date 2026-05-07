@@ -14,6 +14,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { api, ApiError } from "../lib/api";
+import { fontWeight, palette, radius, semantic, space } from "../theme";
+import { ScreenHeader } from "../components/ScreenHeader";
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -93,10 +95,10 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-const STATUS_COLOR: Record<UploadStatus, string> = {
-  pending: "#f59e0b",
-  uploaded: "#10b981",
-  deleted: "#64748b",
+const STATUS_COLOR: Record<UploadStatus, { bg: string; fg: string }> = {
+  pending: { bg: "#FEF3C7", fg: "#D97706" },
+  uploaded: { bg: "#DCFCE7", fg: "#15803D" },
+  deleted: { bg: "#F1F5F9", fg: "#64748B" },
 };
 
 export function DocumentsScreen() {
@@ -171,30 +173,33 @@ export function DocumentsScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.topbar}>
-        <Text style={styles.title}>Documents</Text>
-        <TouchableOpacity
-          style={[styles.addButton, upload.isPending && styles.addButtonBusy]}
-          onPress={() => upload.mutate()}
-          disabled={upload.isPending}
-        >
-          {upload.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.addButtonText}>+ Upload</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Documents"
+        subtitle="Lab reports, scans, and prescriptions you've shared with your care team."
+        trailing={
+          <TouchableOpacity
+            style={[styles.addButton, upload.isPending && styles.addButtonBusy]}
+            onPress={() => upload.mutate()}
+            disabled={upload.isPending}
+          >
+            {upload.isPending ? (
+              <ActivityIndicator color={palette.white} />
+            ) : (
+              <Text style={styles.addButtonText}>+ Upload</Text>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {list.isPending ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#2563eb" />
+          <ActivityIndicator color={palette.brand700} />
         </View>
       ) : list.isError ? (
         <View style={styles.center}>
-          <Text style={styles.error}>Failed to load: {list.error.message}</Text>
+          <Text style={styles.error}>Couldn&apos;t load: {list.error.message}</Text>
         </View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
@@ -209,7 +214,7 @@ export function DocumentsScreen() {
             <RefreshControl
               refreshing={list.isFetching && !list.isPending}
               onRefresh={() => void list.refetch()}
-              tintColor="#2563eb"
+              tintColor={palette.brand700}
             />
           }
           renderItem={({ item }) => (
@@ -229,10 +234,14 @@ export function DocumentsScreen() {
               <View
                 style={[
                   styles.pill,
-                  { backgroundColor: STATUS_COLOR[item.status] },
+                  { backgroundColor: STATUS_COLOR[item.status].bg },
                 ]}
               >
-                <Text style={styles.pillText}>{item.status}</Text>
+                <Text
+                  style={[styles.pillText, { color: STATUS_COLOR[item.status].fg }]}
+                >
+                  {item.status}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() =>
@@ -259,48 +268,64 @@ export function DocumentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0f172a" },
-  topbar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomColor: "#1e293b",
-    borderBottomWidth: 1,
-  },
-  title: { color: "#f8fafc", fontSize: 20, fontWeight: "700" },
+  root: { flex: 1, backgroundColor: semantic.bg },
   addButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: palette.brand700,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: radius.md,
   },
-  addButtonBusy: { backgroundColor: "#475569" },
-  addButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  error: { color: "#f87171", padding: 16, textAlign: "center" },
-  muted: { color: "#64748b", fontSize: 14 },
-  list: { padding: 16, gap: 10 },
+  addButtonBusy: { backgroundColor: palette.slate400 },
+  addButtonText: {
+    color: palette.white,
+    fontSize: 14,
+    fontWeight: fontWeight.semibold,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: space[6],
+  },
+  error: { color: semantic.danger, padding: space[4], textAlign: "center" },
+  muted: { color: semantic.textMuted, fontSize: 14 },
+  list: { padding: space[4], gap: space[3] },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
-    borderRadius: 10,
-    padding: 12,
-    gap: 10,
+    backgroundColor: semantic.surface,
+    borderRadius: radius.lg,
+    padding: space[3],
+    gap: space[3],
+    borderWidth: 1,
+    borderColor: semantic.border,
   },
   rowMain: { flex: 1 },
-  filename: { color: "#f8fafc", fontSize: 15, fontWeight: "600" },
-  meta: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
-  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  pillText: { color: "#fff", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  filename: {
+    color: semantic.text,
+    fontSize: 15,
+    fontWeight: fontWeight.semibold,
+  },
+  meta: { color: semantic.textMuted, fontSize: 12, marginTop: 2 },
+  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.full },
+  pillText: {
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   deleteButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#0f172a",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: semantic.surfaceMuted,
     justifyContent: "center",
     alignItems: "center",
   },
-  deleteText: { color: "#f87171", fontSize: 18, fontWeight: "700", lineHeight: 20 },
+  deleteText: {
+    color: semantic.danger,
+    fontSize: 18,
+    fontWeight: fontWeight.bold,
+    lineHeight: 20,
+  },
 });
