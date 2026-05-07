@@ -7,9 +7,27 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { registerPushToken, unregisterPushToken } from "./push";
 import { tokenStore, type StoredUser } from "./tokenStore";
+
+// This app is the patient experience only. Doctors/admins who sign in
+// here should be turned away with a clear redirect to their own
+// console; otherwise they'd land on the booking + appointments UI
+// which has nothing to offer them.
+function assertPatientRole(user: StoredUser): void {
+  if (user.role !== "patient") {
+    throw new ApiError(
+      403,
+      `This app is for patients. ${
+        user.role === "doctor"
+          ? "Doctors should use the Vela Health doctor console at http://localhost:5173."
+          : "Admins should use the admin console at http://localhost:5174."
+      }`,
+      "WRONG_APP_FOR_ROLE",
+    );
+  }
+}
 
 interface LoginResponse {
   user: StoredUser;
@@ -26,12 +44,28 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<StoredUser | null>(() => tokenStore.getUser());
+  // Wrap the initial read so a stale non-patient session in
+  // localStorage (e.g. a doctor who previously signed in here) doesn't
+  // bypass the role check.
+  const [user, setUser] = useState<StoredUser | null>(() => {
+    const stored = tokenStore.getUser();
+    if (stored && stored.role !== "patient") {
+      void tokenStore.clear();
+      return null;
+    }
+    return stored;
+  });
   const [pushToken, setPushToken] = useState<string | null>(null);
 
   useEffect(() => {
     return tokenStore.subscribe(() => {
-      setUser(tokenStore.getUser());
+      const next = tokenStore.getUser();
+      if (next && next.role !== "patient") {
+        void tokenStore.clear();
+        setUser(null);
+        return;
+      }
+      setUser(next);
     });
   }, []);
 
@@ -54,6 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: { email, password },
     });
+    // Reject non-patient sessions BEFORE persisting them — this throws
+    // a friendly ApiError that LoginScreen surfaces in the form, and
+    // never writes the doctor's tokens to localStorage.
+    assertPatientRole(result.user);
     await tokenStore.setSession({
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
