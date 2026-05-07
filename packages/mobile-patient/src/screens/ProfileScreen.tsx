@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -15,6 +14,7 @@ import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { brand, fontWeight, palette, radius, semantic, space } from "../theme";
+import { confirmAction } from "../lib/confirm";
 
 interface Profile {
   fullName: string | null;
@@ -123,14 +123,14 @@ export function ProfileScreen() {
     setPrefs((p) => ({ ...p, [key]: !p[key] }));
 
   const onSignOut = () => {
-    Alert.alert("Sign out?", "You'll need to enter your credentials again.", [
-      { text: "Stay signed in", style: "cancel" },
-      {
-        text: "Sign out",
-        style: "destructive",
-        onPress: () => void logout(),
-      },
-    ]);
+    confirmAction({
+      title: "Sign out?",
+      message: "You'll need to enter your credentials again.",
+      confirmLabel: "Sign out",
+      cancelLabel: "Stay signed in",
+      destructive: true,
+      onConfirm: () => void logout(),
+    });
   };
 
   const initials = initialsFor(profileQuery.data ?? { fullName: null, phone: null, dateOfBirth: null }, user?.email);

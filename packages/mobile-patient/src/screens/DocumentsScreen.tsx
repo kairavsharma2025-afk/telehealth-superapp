@@ -17,6 +17,7 @@ import * as FileSystem from "expo-file-system";
 import { api, ApiError } from "../lib/api";
 import { fontWeight, palette, radius, semantic, space } from "../theme";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { confirmAction } from "../lib/confirm";
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -309,14 +310,13 @@ export function DocumentsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() =>
-                    Alert.alert("Delete?", item.filename, [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Delete",
-                        style: "destructive",
-                        onPress: () => remove.mutate(item.id),
-                      },
-                    ])
+                    confirmAction({
+                      title: "Delete this document?",
+                      message: item.filename,
+                      confirmLabel: "Delete",
+                      destructive: true,
+                      onConfirm: () => remove.mutate(item.id),
+                    })
                   }
                   style={styles.deleteButton}
                   disabled={remove.isPending}

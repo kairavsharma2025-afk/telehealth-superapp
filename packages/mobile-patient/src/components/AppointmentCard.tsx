@@ -1,6 +1,7 @@
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
 import { formatRelative } from "../lib/countdown";
+import { confirmAction } from "../lib/confirm";
 import { StatusPill, type AppointmentStatus } from "./StatusPill";
 
 export interface AppointmentItem {
@@ -72,14 +73,14 @@ export function AppointmentCard({
     appointment.status === "scheduled" || appointment.status === "confirmed";
 
   const handleCancel = () => {
-    Alert.alert(
-      "Cancel appointment?",
-      `${doctorName(doctor, appointment.doctorId)} on ${fullDateFmt.format(start)} at ${timeFmt.format(start)}.`,
-      [
-        { text: "Keep it", style: "cancel" },
-        { text: "Cancel appointment", style: "destructive", onPress: onCancel },
-      ],
-    );
+    confirmAction({
+      title: "Cancel appointment?",
+      message: `${doctorName(doctor, appointment.doctorId)} on ${fullDateFmt.format(start)} at ${timeFmt.format(start)}.`,
+      confirmLabel: "Cancel appointment",
+      cancelLabel: "Keep it",
+      destructive: true,
+      onConfirm: onCancel,
+    });
   };
 
   const handleJoin = () => {
