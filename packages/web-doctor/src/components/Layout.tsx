@@ -16,11 +16,19 @@ interface NavItem {
   icon: ReactNode;
 }
 
-const NAV: NavItem[] = [
+// Hospital-EMR-style sidebar grouping. The first group is the
+// clinician's day-to-day workflow; the second is record-keeping +
+// account.
+const PRIMARY_NAV: NavItem[] = [
   {
     to: "/",
     label: "Dashboard",
     icon: <Icon path="M3 12 12 4 21 12 M5 10v10h14V10" />,
+  },
+  {
+    to: "/appointments",
+    label: "Appointments",
+    icon: <Icon path="M8 2v4M16 2v4M3 10h18M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />,
   },
   {
     to: "/schedule",
@@ -31,6 +39,24 @@ const NAV: NavItem[] = [
     to: "/patients",
     label: "Patients",
     icon: <Icon path="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z M3 21a9 9 0 0 1 18 0" />,
+  },
+];
+
+const SECONDARY_NAV: NavItem[] = [
+  {
+    to: "/documents",
+    label: "Documents",
+    icon: <Icon path="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 13h6 M9 17h6" />,
+  },
+  {
+    to: "/notifications",
+    label: "Notifications",
+    icon: <Icon path="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10 21a2 2 0 0 0 4 0" />,
+  },
+  {
+    to: "/profile",
+    label: "Profile",
+    icon: <Icon path="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z M4 21a8 8 0 0 1 16 0" />,
   },
 ];
 
@@ -52,24 +78,15 @@ export function Layout({ title, meta, children }: LayoutProps) {
         </div>
 
         <nav className="app-sidebar-nav" aria-label="Primary">
-          <span className="label">Workspace</span>
-          {NAV.map((item) => {
-            const active =
-              item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={active ? "active" : ""}
-                end={item.to === "/"}
-              >
-                <span className="icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                {item.label}
-              </NavLink>
-            );
-          })}
+          <span className="label">Clinical</span>
+          {PRIMARY_NAV.map((item) => (
+            <NavItemLink key={item.to} item={item} location={location.pathname} />
+          ))}
+
+          <span className="label">Records</span>
+          {SECONDARY_NAV.map((item) => (
+            <NavItemLink key={item.to} item={item} location={location.pathname} />
+          ))}
         </nav>
 
         <div className="app-sidebar-foot">
@@ -92,6 +109,29 @@ export function Layout({ title, meta, children }: LayoutProps) {
 
       <main className="app-main">{children}</main>
     </div>
+  );
+}
+
+function NavItemLink({
+  item,
+  location,
+}: {
+  item: NavItem;
+  location: string;
+}) {
+  const active =
+    item.to === "/" ? location === "/" : location.startsWith(item.to);
+  return (
+    <NavLink
+      to={item.to}
+      className={active ? "active" : ""}
+      end={item.to === "/"}
+    >
+      <span className="icon" aria-hidden="true">
+        {item.icon}
+      </span>
+      {item.label}
+    </NavLink>
   );
 }
 

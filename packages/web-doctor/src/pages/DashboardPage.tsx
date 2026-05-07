@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -10,6 +11,7 @@ import {
 import { type AppointmentStatus } from "../components/StatusPill";
 import { EmptyState } from "../components/EmptyState";
 import { AppointmentRowSkeleton } from "../components/Skeleton";
+import { formatRelative } from "../lib/countdown";
 
 interface ListResult {
   items: Appointment[];
@@ -35,6 +37,7 @@ function isSameDay(a: Date, b: Date): boolean {
 export function DashboardPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("today");
 
   const query = useQuery<ListResult, ApiError>({
@@ -106,8 +109,68 @@ export function DashboardPage() {
     };
   }, [buckets, mine]);
 
+  // "Next up" — first non-terminal appointment by start time. Drives
+  // the hero widget so the doctor sees their next visit + a quick CTA
+  // the moment they land on the dashboard.
+  const nextUp = useMemo(() => {
+    const now = Date.now();
+    return mine
+      .filter(
+        (a) =>
+          a.status !== "cancelled" &&
+          a.status !== "completed" &&
+          new Date(a.endAt).getTime() > now,
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+      )[0];
+  }, [mine]);
+
   return (
     <Layout title="Dashboard" meta={<span>Today · {new Date().toLocaleDateString()}</span>}>
+      {nextUp ? (
+        <div className="next-up">
+          <div>
+            <span className="label">Next up</span>
+            <h2>Patient #{nextUp.patientId.slice(0, 8)}</h2>
+            <span className="countdown">
+              {nextUp.reason ? `${nextUp.reason} · ` : ""}
+              {formatRelative(new Date(nextUp.startAt))} ·{" "}
+              {new Date(nextUp.startAt).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Link
+              to={`/appointments/${nextUp.id}`}
+              className="btn"
+              style={{ background: "rgba(255,255,255,0.16)", borderColor: "transparent" }}
+            >
+              View details
+            </Link>
+            {nextUp.status === "scheduled" ? (
+              <button
+                onClick={() =>
+                  transition.mutate({ id: nextUp.id, to: "confirmed" })
+                }
+                disabled={transition.isPending}
+              >
+                Accept
+              </button>
+            ) : nextUp.status === "confirmed" ? (
+              <button
+                onClick={() => navigate(`/consultation/${nextUp.id}`)}
+              >
+                ▶ Start consultation
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="kpi-grid">
         <Kpi label="Today's queue" value={kpis.today} brand />
         <Kpi label="Awaiting confirmation" value={kpis.pending} delta="Needs your review" />
