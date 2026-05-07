@@ -6,3 +6,4 @@ export * from "./logger.js";
 export * from "./http-logger.js";
 export * from "./health.js";
 export * from "./metrics.js";
+export * from "./shutdown.js";

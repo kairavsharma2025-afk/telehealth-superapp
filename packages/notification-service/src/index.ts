@@ -1,3 +1,4 @@
+import { closeServer, installShutdown } from "@telehealth/shared";
 import { config } from "./config.js";
 import { pool, pingDb } from "./db.js";
 import { logger } from "./logger.js";
@@ -19,16 +20,17 @@ async function main() {
   });
   startWorker();
 
-  const shutdown = (signal: string) => {
-    logger.info({ signal }, "shutting down");
-    void stopWorker().finally(() => {
-      server.close(() => {
-        void pool.end().finally(() => process.exit(0));
-      });
-    });
-  };
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  // Order matters: stop the worker first so it doesn't open a fresh DB
+  // txn after we close the HTTP server, then drain HTTP, then end the
+  // pool. Each step has the in-flight tick / request / query bounded.
+  installShutdown({
+    logger,
+    steps: [
+      { name: "queue-worker", run: stopWorker },
+      { name: "http-server", run: () => closeServer(server) },
+      { name: "pg-pool", run: () => pool.end() },
+    ],
+  });
 }
 
 main().catch((err: unknown) => {

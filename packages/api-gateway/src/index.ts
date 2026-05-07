@@ -1,3 +1,4 @@
+import { closeServer, installShutdown } from "@telehealth/shared";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { buildServer } from "./server.js";
@@ -15,12 +16,10 @@ function main() {
     );
   });
 
-  const shutdown = (signal: string) => {
-    logger.info({ signal }, "shutting down");
-    server.close(() => process.exit(0));
-  };
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  installShutdown({
+    logger,
+    steps: [{ name: "http-server", run: () => closeServer(server) }],
+  });
 }
 
 main();

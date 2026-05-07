@@ -1,3 +1,4 @@
+import { closeServer, installShutdown } from "@telehealth/shared";
 import { config } from "./config.js";
 import { pool, pingDb } from "./db.js";
 import { ensureBucketExists } from "./lib/s3.js";
@@ -20,14 +21,13 @@ async function main() {
     );
   });
 
-  const shutdown = (signal: string) => {
-    logger.info({ signal }, "shutting down");
-    server.close(() => {
-      void pool.end().finally(() => process.exit(0));
-    });
-  };
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  installShutdown({
+    logger,
+    steps: [
+      { name: "http-server", run: () => closeServer(server) },
+      { name: "pg-pool", run: () => pool.end() },
+    ],
+  });
 }
 
 main().catch((err: unknown) => {
