@@ -6,6 +6,8 @@ import { api, type ApiError } from "../lib/api";
 import { StatusPill, type AppointmentStatus } from "../components/StatusPill";
 import { Logo } from "../components/Logo";
 import { useEscapeKey, useToast } from "../lib/toast";
+import { displayName } from "../lib/queries";
+import { useLookup } from "../lib/useLookup";
 
 interface Appointment {
   id: string;
@@ -54,6 +56,7 @@ export function ConsultationPage() {
     enabled: !!id,
     refetchOnWindowFocus: false,
   });
+  const patientLookup = useLookup(query.data ? [query.data.patientId] : []);
 
   // Local edit buffer for the notes textarea + autosave plumbing.
   const [notes, setNotes] = useState<string>("");
@@ -208,28 +211,51 @@ export function ConsultationPage() {
           <div className="detail-section">
             <h3>Patient</h3>
             <div className="body">
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
-                  background: "var(--color-brand-subtle)",
-                  color: "var(--color-brand-800)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 600,
-                  fontSize: 18,
-                  marginBottom: 12,
-                }}
-              >
-                #{a.patientId.slice(0, 2).toUpperCase()}
-              </div>
+              {(() => {
+                const info = patientLookup.get(a.patientId);
+                const initials = info?.fullName
+                  ? info.fullName
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((w) => w.charAt(0).toUpperCase())
+                      .join("")
+                  : "??";
+                const name = displayName(a.patientId, info, "patient");
+                return (
+                  <>
+                    <div
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                        background: "var(--color-brand-subtle)",
+                        color: "var(--color-brand-800)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 600,
+                        fontSize: 18,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {initials}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 17,
+                        fontWeight: 600,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {name}
+                    </div>
+                    <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                      #{a.patientId.slice(0, 8)}
+                    </div>
+                  </>
+                );
+              })()}
               <dl className="prop-list">
-                <dt>ID</dt>
-                <dd>
-                  <code>#{a.patientId.slice(0, 8)}…</code>
-                </dd>
                 <dt>Status</dt>
                 <dd>
                   <StatusPill status={a.status} />

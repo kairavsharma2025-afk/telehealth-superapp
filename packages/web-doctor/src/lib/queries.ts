@@ -44,3 +44,42 @@ export function lastNameOf(fullName: string | null | undefined): string {
   if (!last) return "Doctor";
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
+
+// Title-case a name string ("kavya menon" → "Kavya Menon").
+export function titleCase(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+// User-lookup types + display helper. The hook lives in useLookup.ts
+// because it needs React; the type lives here so non-hook callers
+// (display formatting) stay simple.
+export interface LookupItem {
+  id: string;
+  fullName: string | null;
+  role: "patient" | "doctor" | "admin";
+}
+export interface LookupResult {
+  items: LookupItem[];
+}
+
+// "Aarav Sharma" / "Dr. Aarav Sharma" / "Patient #abc12345".
+// Doctors get the "Dr." prefix; patients get a plain title-cased
+// name. When the lookup hasn't resolved yet (or there's no profile),
+// falls back to a stable "#<short-id>".
+export function displayName(
+  id: string,
+  info: LookupItem | undefined,
+  fallback: "patient" | "doctor" = "patient",
+): string {
+  const role = info?.role ?? fallback;
+  const name = info?.fullName?.trim();
+  if (name) {
+    return role === "doctor" ? `Dr. ${titleCase(name)}` : titleCase(name);
+  }
+  return role === "doctor"
+    ? `Doctor #${id.slice(0, 8)}`
+    : `Patient #${id.slice(0, 8)}`;
+}

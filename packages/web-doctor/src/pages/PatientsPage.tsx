@@ -6,6 +6,8 @@ import { useAuth } from "../lib/auth";
 import { Layout } from "../components/Layout";
 import { EmptyState } from "../components/EmptyState";
 import { formatRelative } from "../lib/countdown";
+import { titleCase } from "../lib/queries";
+import { useLookup } from "../lib/useLookup";
 
 interface Appointment {
   id: string;
@@ -75,11 +77,19 @@ export function PatientsPage() {
     return summarise(mine);
   }, [query.data, user?.id]);
 
+  // Resolve every patient's name in one batch.
+  const lookup = useLookup(patients.map((p) => p.patientId));
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return patients;
-    return patients.filter((p) => p.patientId.toLowerCase().includes(q));
-  }, [patients, search]);
+    return patients.filter((p) => {
+      const name = lookup.get(p.patientId)?.fullName ?? "";
+      return (
+        p.patientId.toLowerCase().includes(q) || name.toLowerCase().includes(q)
+      );
+    });
+  }, [patients, search, lookup]);
 
   return (
     <Layout
@@ -123,42 +133,51 @@ export function PatientsPage() {
           />
         ) : (
           <div>
-            {visible.map((p) => (
-              <Link
-                key={p.patientId}
-                to={`/patients/${p.patientId}`}
-                className="patient-row"
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
-                <div className="avatar" aria-hidden="true">
-                  #{p.patientId.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="name">
-                    Patient · #{p.patientId.slice(0, 8)}
+            {visible.map((p) => {
+              const info = lookup.get(p.patientId);
+              const name = info?.fullName
+                ? titleCase(info.fullName)
+                : `Patient #${p.patientId.slice(0, 8)}`;
+              const initials = (info?.fullName ?? "??")
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((w) => w.charAt(0).toUpperCase())
+                .join("");
+              return (
+                <Link
+                  key={p.patientId}
+                  to={`/patients/${p.patientId}`}
+                  className="patient-row"
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <div className="avatar" aria-hidden="true">
+                    {initials || "??"}
                   </div>
-                  <div className="stats">
-                    {p.visits} visit{p.visits === 1 ? "" : "s"} ·{" "}
-                    {p.completed} completed
-                    {p.upcoming > 0 ? ` · ${p.upcoming} upcoming` : ""}
+                  <div>
+                    <div className="name">{name}</div>
+                    <div className="stats">
+                      {p.visits} visit{p.visits === 1 ? "" : "s"} ·{" "}
+                      {p.completed} completed
+                      {p.upcoming > 0 ? ` · ${p.upcoming} upcoming` : ""}
+                    </div>
                   </div>
-                </div>
-                <div className="muted" style={{ fontSize: 13, textAlign: "right" }}>
-                  {p.nextVisitAt ? (
-                    <>
-                      Next:{" "}
-                      <strong style={{ color: "var(--color-brand-700)" }}>
-                        {formatRelative(new Date(p.nextVisitAt))}
-                      </strong>
-                    </>
-                  ) : p.lastVisitAt ? (
-                    <>Last: {formatRelative(new Date(p.lastVisitAt))}</>
-                  ) : (
-                    "—"
-                  )}
-                </div>
-              </Link>
-            ))}
+                  <div className="muted" style={{ fontSize: 13, textAlign: "right" }}>
+                    {p.nextVisitAt ? (
+                      <>
+                        Next:{" "}
+                        <strong style={{ color: "var(--color-brand-700)" }}>
+                          {formatRelative(new Date(p.nextVisitAt))}
+                        </strong>
+                      </>
+                    ) : p.lastVisitAt ? (
+                      <>Last: {formatRelative(new Date(p.lastVisitAt))}</>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

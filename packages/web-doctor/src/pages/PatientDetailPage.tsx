@@ -6,6 +6,8 @@ import { useAuth } from "../lib/auth";
 import { Layout } from "../components/Layout";
 import { StatusPill, type AppointmentStatus } from "../components/StatusPill";
 import { formatRelative } from "../lib/countdown";
+import { displayName } from "../lib/queries";
+import { useLookup } from "../lib/useLookup";
 
 interface Appointment {
   id: string;
@@ -35,6 +37,18 @@ export function PatientDetailPage() {
     queryKey: ["appointments"],
     queryFn: () => api<ListResult>("/appointments"),
   });
+  const lookup = useLookup(id ? [id] : []);
+  const patientInfo = id ? lookup.get(id) : undefined;
+  const patientName = id
+    ? displayName(id, patientInfo, "patient")
+    : "Patient";
+  const initials = patientInfo?.fullName
+    ? patientInfo.fullName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w.charAt(0).toUpperCase())
+        .join("")
+    : "??";
 
   const appointments = useMemo(() => {
     if (!id) return [];
@@ -79,11 +93,11 @@ export function PatientDetailPage() {
       }
     >
       <div className="identity-card">
-        <div className="avatar">#{id.slice(0, 2).toUpperCase()}</div>
+        <div className="avatar">{initials}</div>
         <div>
-          <div className="who">Patient · #{id.slice(0, 8)}</div>
+          <div className="who">{patientName}</div>
           <div className="email">
-            <code style={{ fontSize: 12 }}>{id}</code>
+            <code style={{ fontSize: 12 }}>#{id.slice(0, 8)}</code>
           </div>
           <span className="role-pill">patient</span>
         </div>

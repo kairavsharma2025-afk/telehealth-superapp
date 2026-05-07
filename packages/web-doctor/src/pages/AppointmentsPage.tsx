@@ -10,6 +10,8 @@ import {
 } from "../components/StatusPill";
 import { EmptyState } from "../components/EmptyState";
 import { AppointmentRowSkeleton } from "../components/Skeleton";
+import { displayName } from "../lib/queries";
+import { useLookup } from "../lib/useLookup";
 
 interface Appointment {
   id: string;
@@ -124,6 +126,10 @@ export function AppointmentsPage() {
     [query.data, user?.id],
   );
 
+  // Resolve every visible patient's name once, drives the row "who"
+  // line + makes the search box match against names too.
+  const patientLookup = useLookup(mine.map((a) => a.patientId));
+
   const filtered = useMemo(() => {
     const today = new Date();
     let bucket: Appointment[];
@@ -157,6 +163,7 @@ export function AppointmentsPage() {
     return bucket.filter((a) => {
       const haystack = [
         a.patientId,
+        patientLookup.get(a.patientId)?.fullName ?? "",
         a.reason ?? "",
         a.notes ?? "",
         a.status,
@@ -165,7 +172,7 @@ export function AppointmentsPage() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [mine, filter, search]);
+  }, [mine, filter, search, patientLookup]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -180,7 +187,7 @@ export function AppointmentsPage() {
             <span className="icon" aria-hidden="true">🔍</span>
             <input
               type="search"
-              placeholder="Search by patient ID, reason, or notes…"
+              placeholder="Search by patient name, reason, or notes…"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -270,8 +277,7 @@ export function AppointmentsPage() {
                   </div>
                   <div className="appt-main">
                     <div className="who">
-                      Patient ·{" "}
-                      <span className="muted">#{a.patientId.slice(0, 8)}</span>
+                      {displayName(a.patientId, patientLookup.get(a.patientId), "patient")}
                     </div>
                     <div className="reason">
                       {a.reason ?? "No reason provided"}{" "}

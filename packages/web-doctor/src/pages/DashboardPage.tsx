@@ -13,6 +13,8 @@ import { EmptyState } from "../components/EmptyState";
 import { AppointmentRowSkeleton } from "../components/Skeleton";
 import { PlayIcon } from "../components/icons";
 import { formatRelative } from "../lib/countdown";
+import { displayName } from "../lib/queries";
+import { useLookup } from "../lib/useLookup";
 
 interface ListResult {
   items: Appointment[];
@@ -135,13 +137,22 @@ export function DashboardPage() {
       )[0];
   }, [mine]);
 
+  // Resolve patient names for the Next-up hero + every visible row.
+  const patientLookup = useLookup(mine.map((a) => a.patientId));
+
   return (
     <Layout title="Dashboard" meta={<span>Today · {new Date().toLocaleDateString()}</span>}>
       {nextUp ? (
         <div className="next-up">
           <div>
             <span className="label">Next up</span>
-            <h2>Patient #{nextUp.patientId.slice(0, 8)}</h2>
+            <h2>
+              {displayName(
+                nextUp.patientId,
+                patientLookup.get(nextUp.patientId),
+                "patient",
+              )}
+            </h2>
             <span className="countdown">
               {nextUp.reason ? `${nextUp.reason} · ` : ""}
               {formatRelative(new Date(nextUp.startAt))} ·{" "}
@@ -264,6 +275,7 @@ export function DashboardPage() {
               <AppointmentCard
                 key={appointment.id}
                 appointment={appointment}
+                patient={patientLookup.get(appointment.patientId)}
                 busy={transition.isPending}
                 onTransition={(to) => transition.mutate({ id: appointment.id, to })}
               />

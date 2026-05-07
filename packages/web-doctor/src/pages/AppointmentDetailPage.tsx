@@ -8,6 +8,8 @@ import { Skeleton } from "../components/Skeleton";
 import { PlayIcon } from "../components/icons";
 import { useEscapeKey, useToast } from "../lib/toast";
 import { formatRelative } from "../lib/countdown";
+import { displayName } from "../lib/queries";
+import { useLookup } from "../lib/useLookup";
 
 interface Appointment {
   id: string;
@@ -45,6 +47,10 @@ export function AppointmentDetailPage() {
     queryFn: () => api<Appointment>(`/appointments/${id ?? ""}`),
     enabled: !!id,
   });
+
+  // Resolve the patient's display name. The hook tolerates an empty
+  // array, so the call is safe before the appointment loads.
+  const patientLookup = useLookup(query.data ? [query.data.patientId] : []);
 
   const transition = useMutation<
     Appointment,
@@ -173,9 +179,14 @@ export function AppointmentDetailPage() {
               <dl className="prop-list">
                 <dt>Patient</dt>
                 <dd>
-                  <code>#{a.patientId.slice(0, 8)}…</code>
+                  <strong>
+                    {displayName(a.patientId, patientLookup.get(a.patientId), "patient")}
+                  </strong>{" "}
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    #{a.patientId.slice(0, 8)}
+                  </span>
                   <Link
-                    to="/patients"
+                    to={`/patients/${a.patientId}`}
                     style={{ marginLeft: 10, fontSize: 13 }}
                   >
                     View patient record

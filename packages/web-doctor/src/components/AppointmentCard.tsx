@@ -1,4 +1,5 @@
 import { StatusPill, type AppointmentStatus } from "./StatusPill";
+import { displayName, type LookupItem } from "../lib/queries";
 
 export interface Appointment {
   id: string;
@@ -14,19 +15,27 @@ interface AppointmentCardProps {
   appointment: Appointment;
   onTransition: (status: AppointmentStatus) => void;
   busy?: boolean;
+  patient?: LookupItem | undefined;
 }
 
 const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const monthDayFmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
-export function AppointmentCard({ appointment, onTransition, busy }: AppointmentCardProps) {
+export function AppointmentCard({
+  appointment,
+  onTransition,
+  busy,
+  patient,
+}: AppointmentCardProps) {
   const start = new Date(appointment.startAt);
   const end = new Date(appointment.endAt);
 
   const canConfirm = appointment.status === "scheduled";
   const canComplete = appointment.status === "confirmed";
   const canCancel = appointment.status === "scheduled" || appointment.status === "confirmed";
+
+  const patientName = displayName(appointment.patientId, patient, "patient");
 
   return (
     <li className="appt-row">
@@ -38,7 +47,10 @@ export function AppointmentCard({ appointment, onTransition, busy }: Appointment
 
       <div className="appt-main">
         <div className="who">
-          Patient · <span className="muted">#{appointment.patientId.slice(0, 8)}</span>
+          {patientName}{" "}
+          <span className="muted" style={{ fontWeight: 400 }}>
+            · #{appointment.patientId.slice(0, 8)}
+          </span>
         </div>
         <div className="reason">
           {appointment.reason ?? "No reason provided"}
