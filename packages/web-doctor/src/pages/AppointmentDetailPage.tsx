@@ -242,6 +242,21 @@ export function AppointmentDetailPage() {
                   Start consultation
                 </button>
               ) : null}
+              {canStartConsult ? (
+                <a
+                  href={`https://meet.jit.si/telehealth-${a.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn secondary"
+                  style={{
+                    width: "100%",
+                    textDecoration: "none",
+                    justifyContent: "center",
+                  }}
+                >
+                  Join video room
+                </a>
+              ) : null}
               {canConfirm ? (
                 <button
                   onClick={() => transition.mutate("confirmed")}

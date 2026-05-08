@@ -1,5 +1,10 @@
 @import "@telehealth/design/tokens.css";
 
+:root {
+  --color-sidebar-bg: var(--color-brand-800);
+  --color-sidebar-text: var(--color-text-on-brand);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -209,12 +214,13 @@ label.checkbox input { width: auto; }
 }
 .sidebar {
   grid-area: sidebar;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  background: var(--color-sidebar-bg);
+  border-right: none;
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  color: var(--color-sidebar-text);
 }
 .sidebar-brand {
   display: flex;
@@ -229,7 +235,7 @@ label.checkbox input { width: auto; }
   display: block;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
-  color: var(--color-text-muted);
+  color: rgba(255,255,255,0.6);
 }
 .sidebar nav {
   display: flex;
@@ -242,7 +248,7 @@ label.checkbox input { width: auto; }
   margin-bottom: var(--space-2);
   font-size: 11px;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-subtle);
+  color: rgba(255,255,255,0.45);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -252,16 +258,21 @@ label.checkbox input { width: auto; }
   gap: 10px;
   padding: 9px 10px;
   border-radius: var(--radius-md);
-  color: var(--color-text);
+  color: rgba(255,255,255,0.8);
   text-decoration: none;
   font-weight: var(--font-weight-medium);
   font-size: var(--font-size-base);
   transition: background 120ms ease;
 }
-.sidebar nav a:hover { background: var(--color-surface-muted); }
+
+.sidebar nav a:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
 .sidebar nav a.active {
-  background: var(--color-brand-subtle);
-  color: var(--color-brand-800);
+  background: rgba(255,255,255,0.15);
+  color: #fff;
 }
 .sidebar nav a .icon {
   width: 18px;
@@ -271,23 +282,29 @@ label.checkbox input { width: auto; }
 .sidebar-footer {
   margin-top: auto;
   padding: 12px;
-  background: var(--color-surface-muted);
+  background: rgba(0,0,0,0.2);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
+  color: rgba(255,255,255,0.8);
 }
+
 .sidebar-footer .user-line {
   font-weight: var(--font-weight-semibold);
+  color: #fff;
 }
+
 .sidebar-footer button {
   margin-top: 10px;
   width: 100%;
   background: transparent;
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border-strong);
+  color: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255,255,255,0.25);
 }
+
 .sidebar-footer button:hover {
-  color: var(--color-text);
-  background: var(--color-surface);
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.4);
 }
 
 .topbar {
@@ -352,7 +369,7 @@ label.checkbox input { width: auto; }
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -427,6 +444,9 @@ label.checkbox input { width: auto; }
   padding: 14px 20px;
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
+}
+.data-table td:first-child {
+  white-space: nowrap;
 }
 .data-table tbody tr:last-child td { border-bottom: none; }
 .data-table tbody tr:hover { background: var(--color-surface-muted); }

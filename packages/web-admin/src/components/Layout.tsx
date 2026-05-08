@@ -37,7 +37,7 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <Logo size={28} color="var(--color-brand-700)" />
+          <Logo size={28} color="#ffffff" />
           <div>
             <div>{brand.name}</div>
             <small>Admin Console</small>

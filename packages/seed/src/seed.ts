@@ -87,6 +87,12 @@ async function main() {
     });
   }
 
+  // Stable test accounts — emails never change across reseeds so manual
+  // login flows (smoke testing, demos) don't break when other accounts are
+  // regenerated with random names.
+  userValues.push({ id: "", email: "doctor@test.example", role: "doctor" });
+  userValues.push({ id: "", email: "patient@test.example", role: "patient" });
+
   console.log("inserting users...");
   await batchInsert(
     client,
@@ -145,7 +151,7 @@ async function main() {
       SLOT_MIN_MS +
       Math.floor((Math.random() * (SLOT_MAX_MS - SLOT_MIN_MS)) / (30 * 60_000)) * (30 * 60_000);
     const endMs = startMs + 30 * 60_000;
-    const status = pickStatus();
+    const status = pickStatus(startMs);
 
     try {
       await client.query(
@@ -247,11 +253,18 @@ async function main() {
   await client.end();
 }
 
-function pickStatus(): "scheduled" | "confirmed" | "completed" | "cancelled" {
+function pickStatus(
+  startMs: number,
+): "scheduled" | "confirmed" | "completed" | "cancelled" {
+  // Past appointments have already happened — they're either completed or
+  // cancelled. Future appointments haven't happened yet — they're scheduled
+  // (default), confirmed (the doctor accepted), or cancelled.
   const r = Math.random();
+  if (startMs < Date.now()) {
+    return r < 0.9 ? "completed" : "cancelled";
+  }
   if (r < 0.6) return "scheduled";
-  if (r < 0.8) return "confirmed";
-  if (r < 0.95) return "completed";
+  if (r < 0.9) return "confirmed";
   return "cancelled";
 }
 

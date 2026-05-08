@@ -190,6 +190,15 @@ export function ConsultationPage() {
             <span className="pulse" aria-hidden="true" />
             {formatElapsed(elapsed)}
           </div>
+          <a
+            href={`https://meet.jit.si/telehealth-${a.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn"
+            style={{ textDecoration: "none" }}
+          >
+            Join video
+          </a>
           <button
             onClick={() => completeMut.mutate()}
             disabled={completeMut.isPending || isTerminal}

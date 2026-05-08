@@ -37,8 +37,8 @@ type Filter =
   | "awaiting";
 
 const VISIBLE_FILTERS: readonly Filter[] = [
-  "today",
   "upcoming",
+  "today",
   "completed",
   "cancelled",
   "all",
@@ -57,7 +57,7 @@ function readFilterFromQuery(params: URLSearchParams): Filter {
     case "all":
       return v;
     default:
-      return "today";
+      return "upcoming";
   }
 }
 
@@ -137,14 +137,15 @@ export function AppointmentsPage() {
       case "today":
         bucket = mine.filter((a) => isSameDay(new Date(a.startAt), today));
         break;
-      case "upcoming":
+      case "upcoming": {
+        const startOfToday = new Date(today);
+        startOfToday.setHours(0, 0, 0, 0);
         bucket = mine.filter(
           (a) =>
-            new Date(a.startAt) > today &&
-            !isSameDay(new Date(a.startAt), today) &&
-            a.status !== "cancelled",
+            new Date(a.startAt) >= startOfToday && a.status !== "cancelled",
         );
         break;
+      }
       case "awaiting":
         bucket = mine.filter((a) => a.status === "scheduled");
         break;

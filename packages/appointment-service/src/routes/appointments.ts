@@ -116,11 +116,12 @@ appointmentsRouter.get(
     }
 
     const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+    const order = query.data.from ? "ASC" : "DESC";
     const result = await pool.query<AppointmentRow>(
       `SELECT ${SELECT_COLUMNS} FROM appointments
         ${where}
-        ORDER BY start_at DESC
-        LIMIT 100`,
+        ORDER BY start_at ${order}
+        LIMIT 500`,
       params,
     );
 
@@ -220,6 +221,40 @@ appointmentsRouter.patch(
       await client.query("COMMIT");
       const updatedRow = updated.rows[0];
       if (!updatedRow) throw new ServiceError("INTERNAL", "Update returned no row");
+
+      // Notify the patient when their booking is confirmed or cancelled by
+      // someone else. We skip self-cancellations (patient cancels their own
+      // booking) since they already know. Insert directly into the
+      // notifications table — both services share Postgres, and the
+      // notification-service worker picks up pending rows.
+      if (
+        input.status !== undefined &&
+        (input.status === "confirmed" || input.status === "cancelled") &&
+        row.status !== input.status &&
+        !isPatient
+      ) {
+        const template =
+          input.status === "confirmed"
+            ? "appointment_confirmed"
+            : "appointment_cancelled";
+        await pool.query(
+          `INSERT INTO notifications
+             (recipient_user_id, created_by_user_id, channel, template, payload)
+           VALUES ($1, $2, 'push', $3, $4::jsonb)`,
+          [
+            updatedRow.patient_id,
+            req.auth.userId,
+            template,
+            JSON.stringify({
+              appointmentId: updatedRow.id,
+              doctorId: updatedRow.doctor_id,
+              startAt: updatedRow.start_at.toISOString(),
+              endAt: updatedRow.end_at.toISOString(),
+              cancelledBy: input.status === "cancelled" ? req.auth.role : undefined,
+            }),
+          ],
+        );
+      }
 
       // Audit only admin-initiated status transitions — patient/doctor
       // actions are part of the normal appointment flow and are already

@@ -5,6 +5,7 @@ import {
   FlatList,
   Linking,
   Modal,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -93,13 +94,30 @@ async function uploadFile(asset: PickedAsset, category: Category): Promise<Uploa
       category,
     },
   });
-  const result = await FileSystem.uploadAsync(created.uploadUrl, asset.uri, {
-    httpMethod: "PUT",
-    headers: { "Content-Type": asset.mimeType },
-  });
-  if (result.status < 200 || result.status >= 300) {
-    throw new Error(`S3 PUT failed (${result.status})`);
+
+  // expo-file-system's uploadAsync is native-only — on web it doesn't
+  // stream the picked file to the presigned URL. Use the standard fetch
+  // path on web (the picker hands us a blob:/data: URI we can re-fetch
+  // into a Blob), and keep uploadAsync for iOS/Android where fetch can't
+  // PUT a file:// URI directly.
+  if (Platform.OS === "web") {
+    const blob = await (await fetch(asset.uri)).blob();
+    const res = await fetch(created.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": asset.mimeType },
+      body: blob,
+    });
+    if (!res.ok) throw new Error(`S3 PUT failed (${res.status})`);
+  } else {
+    const result = await FileSystem.uploadAsync(created.uploadUrl, asset.uri, {
+      httpMethod: "PUT",
+      headers: { "Content-Type": asset.mimeType },
+    });
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`S3 PUT failed (${result.status})`);
+    }
   }
+
   return api<UploadRow>(`/uploads/${created.id}/complete`, { method: "POST" });
 }
 

@@ -1,4 +1,11 @@
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Linking,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
 import { formatRelative } from "../lib/countdown";
 import { confirmAction } from "../lib/confirm";
@@ -84,10 +91,14 @@ export function AppointmentCard({
   };
 
   const handleJoin = () => {
-    Alert.alert(
-      "Join consultation",
-      "Live video consultations are powered by Twilio Video; the room link is created when the doctor starts the consultation. Coming with the Phase 7 cloud rollout.",
-    );
+    // Public Jitsi room keyed by appointment id — both patient and doctor
+    // landing on the same URL join the same call. Phase 7 will swap this
+    // for a Twilio room minted server-side with an access token; the URL
+    // shape stays the same so callers don't need to change.
+    const roomUrl = `https://meet.jit.si/telehealth-${appointment.id}`;
+    Linking.openURL(roomUrl).catch(() => {
+      Alert.alert("Could not open consultation", "Please try again.");
+    });
   };
 
   return (

@@ -131,16 +131,37 @@ uploadsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     if (!req.auth) throw new ServiceError("UNAUTHORIZED", "Auth context missing");
-    // Admins see every (non-deleted) upload; everyone else sees only their own.
-    const sql =
-      req.auth.role === "admin"
-        ? `SELECT ${SELECT_COLUMNS} FROM uploads
-            WHERE status <> 'deleted'
-            ORDER BY created_at DESC LIMIT 100`
-        : `SELECT ${SELECT_COLUMNS} FROM uploads
-            WHERE owner_user_id = $1 AND status <> 'deleted'
-            ORDER BY created_at DESC LIMIT 100`;
-    const params = req.auth.role === "admin" ? [] : [req.auth.userId];
+    // Visibility rules:
+    //   admin   — every (non-deleted) upload
+    //   doctor  — their own + every upload owned by a patient they have at
+    //             least one appointment with (cross-service join into the
+    //             appointment-service's table; same trade-off the rest of
+    //             the codebase already makes while both services share PG)
+    //   patient — only their own
+    let sql: string;
+    let params: unknown[];
+    if (req.auth.role === "admin") {
+      sql = `SELECT ${SELECT_COLUMNS} FROM uploads
+              WHERE status <> 'deleted'
+              ORDER BY created_at DESC LIMIT 100`;
+      params = [];
+    } else if (req.auth.role === "doctor") {
+      sql = `SELECT ${SELECT_COLUMNS} FROM uploads
+              WHERE status <> 'deleted'
+                AND (
+                  owner_user_id = $1
+                  OR owner_user_id IN (
+                    SELECT DISTINCT patient_id FROM appointments WHERE doctor_id = $1
+                  )
+                )
+              ORDER BY created_at DESC LIMIT 100`;
+      params = [req.auth.userId];
+    } else {
+      sql = `SELECT ${SELECT_COLUMNS} FROM uploads
+              WHERE owner_user_id = $1 AND status <> 'deleted'
+              ORDER BY created_at DESC LIMIT 100`;
+      params = [req.auth.userId];
+    }
     const result = await pool.query<UploadRow>(sql, params);
     res.json({ items: result.rows.map(toApi) });
   }),
@@ -153,7 +174,7 @@ uploadsRouter.get(
     const id = req.params["id"];
     if (!id || !isUuid(id)) throw new ServiceError("BAD_REQUEST", "Invalid id");
 
-    const row = await fetchOwned(id, req.auth.userId, req.auth.role);
+    const row = await fetchOwned(id, req.auth.userId, req.auth.role, "read");
     if (row.status === "deleted") throw new ServiceError("NOT_FOUND", "Upload not found");
     if (row.status !== "uploaded") {
       res.json({ ...toApi(row), downloadUrl: null });
@@ -213,6 +234,7 @@ async function fetchOwned(
   id: string,
   userId: string,
   role: "patient" | "doctor" | "admin",
+  mode: "read" | "write" = "write",
 ): Promise<UploadRow> {
   const result = await pool.query<UploadRow>(
     `SELECT ${SELECT_COLUMNS} FROM uploads WHERE id = $1`,
@@ -220,10 +242,22 @@ async function fetchOwned(
   );
   const row = result.rows[0];
   if (!row) throw new ServiceError("NOT_FOUND", "Upload not found");
-  if (role !== "admin" && row.owner_user_id !== userId) {
-    throw new ServiceError("FORBIDDEN", "Not your upload");
+  if (role === "admin") return row;
+  if (row.owner_user_id === userId) return row;
+  if (mode === "read" && role === "doctor") {
+    // A doctor may read uploads owned by any patient they have an
+    // appointment with — same visibility rule as the list endpoint.
+    // Write modes (delete, complete) stay owner-or-admin only.
+    const link = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM appointments
+          WHERE doctor_id = $1 AND patient_id = $2
+       ) AS exists`,
+      [userId, row.owner_user_id],
+    );
+    if (link.rows[0]?.exists) return row;
   }
-  return row;
+  throw new ServiceError("FORBIDDEN", "Not your upload");
 }
 
 function isUuid(value: string): boolean {
