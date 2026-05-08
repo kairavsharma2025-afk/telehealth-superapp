@@ -14,7 +14,18 @@ import {
   semantic,
   space,
 } from "../../theme";
-import { CheckIcon, SearchIcon } from "../../components/Icons";
+import {
+  BabyIcon,
+  BoneIcon,
+  BrainIcon,
+  CheckIcon,
+  EarIcon,
+  HeartIcon,
+  SearchIcon,
+  SparklesIcon,
+  StethoscopeIcon,
+  VenusIcon,
+} from "../../components/Icons";
 import { hoverable, SPECIALTIES, type Specialty } from "./shared";
 
 interface StepSpecialtyProps {
@@ -23,15 +34,25 @@ interface StepSpecialtyProps {
   onContinue: () => void;
 }
 
-const SPECIALTY_COLORS: Record<string, string> = {
-  "General Medicine": "#1a7a6b",
-  Cardiology: "#dc2626",
-  Dermatology: "#ea580c",
-  Pediatrics: "#0891b2",
-  Psychiatry: "#7c3aed",
-  Orthopedics: "#16a34a",
-  Gynecology: "#db2777",
-  ENT: "#ca8a04",
+// Per-specialty visual: pastel background tile + a deeper-shade
+// lucide icon. Picked to feel like a friendly clinic (warm but
+// distinct), not a chart of specialties.
+const SPECIALTY_THEME: Record<
+  string,
+  {
+    Icon: (p: { size?: number; color?: string }) => React.JSX.Element;
+    iconColor: string;
+    pastelBg: string;
+  }
+> = {
+  "General Medicine": { Icon: StethoscopeIcon, iconColor: "#0D9E89", pastelBg: "#DCFCE7" },
+  Cardiology:        { Icon: HeartIcon,        iconColor: "#DC2626", pastelBg: "#FEE2E2" },
+  Dermatology:       { Icon: SparklesIcon,     iconColor: "#EA580C", pastelBg: "#FFEDD5" },
+  Pediatrics:        { Icon: BabyIcon,         iconColor: "#0891B2", pastelBg: "#DBEAFE" },
+  Psychiatry:        { Icon: BrainIcon,        iconColor: "#7C3AED", pastelBg: "#EDE9FE" },
+  Orthopedics:       { Icon: BoneIcon,         iconColor: "#16A34A", pastelBg: "#DCFCE7" },
+  Gynecology:        { Icon: VenusIcon,        iconColor: "#DB2777", pastelBg: "#FCE7F3" },
+  ENT:               { Icon: EarIcon,          iconColor: "#CA8A04", pastelBg: "#FEF3C7" },
 };
 
 export function StepSpecialty({
@@ -91,11 +112,23 @@ export function StepSpecialty({
           accessibilityLabel="Continue to choose a doctor and time"
           onPress={onContinue}
           disabled={!selected}
-          style={hoverable((hovered) => [
-            styles.continueBtn,
-            !selected && styles.continueBtnDisabled,
-            hovered && selected && styles.continueBtnHover,
-          ])}
+          style={hoverable((hovered) => {
+            const base: ViewStyle[] = [styles.continueBtn];
+            if (!selected) base.push(styles.continueBtnDisabled);
+            if (hovered && selected) base.push(styles.continueBtnHover);
+            // Gradient + soft brand-tinted shadow on web
+            const webPolish = selected
+              ? {
+                  backgroundImage:
+                    "linear-gradient(135deg, #0d9e89, #0a7a6a)",
+                  boxShadow: "0 4px 14px rgba(13,158,137,0.35)",
+                  cursor: "pointer",
+                }
+              : { cursor: "not-allowed" };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            base.push(webPolish as any);
+            return base;
+          })}
         >
           <Text style={styles.continueText}>Continue →</Text>
         </Pressable>
@@ -113,7 +146,12 @@ function SpecialtyCard({
   selected: boolean;
   onPress: () => void;
 }) {
-  const color = SPECIALTY_COLORS[spec.key] ?? palette.brand700;
+  const theme = SPECIALTY_THEME[spec.key] ?? {
+    Icon: StethoscopeIcon,
+    iconColor: palette.brand700,
+    pastelBg: palette.brand50,
+  };
+  const Icon = theme.Icon;
   return (
     <Pressable
       accessibilityRole="button"
@@ -124,14 +162,27 @@ function SpecialtyCard({
         const out: ViewStyle[] = [styles.card];
         if (hovered) out.push(styles.cardHover);
         if (selected) out.push(styles.cardSelected);
+        // Web-only inline polish: shadow + lift on hover, smooth
+        // transitions. RN's ViewStyle types don't include these
+        // CSS props, so we apply via a cast.
+        const webPolish = {
+          boxShadow: hovered
+            ? "0 8px 20px rgba(13,158,137,0.15), 0 2px 4px rgba(0,0,0,0.04)"
+            : "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+          transform: hovered ? "translateY(-3px)" : "translateY(0)",
+          transitionProperty: "transform, box-shadow, border-color, background-color",
+          transitionDuration: "200ms",
+          transitionTimingFunction: "ease",
+          cursor: "pointer",
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        out.push(webPolish as any);
         return out;
       })}
     >
       <View style={styles.cardHeader}>
-        <View style={[styles.iconBadge, { backgroundColor: color }]}>
-          <Text style={styles.iconLetter}>
-            {spec.name === "ENT" ? "ENT" : spec.name.charAt(0)}
-          </Text>
+        <View style={[styles.iconBadge, { backgroundColor: theme.pastelBg }]}>
+          <Icon size={26} color={theme.iconColor} />
         </View>
         {selected ? (
           <View style={styles.checkBadge}>
@@ -174,15 +225,22 @@ const styles = StyleSheet.create({
     gap: space[3],
   },
   card: {
-    flexBasis: "calc(50% - 6px)" as unknown as number, // 2 cols on web with our gap
+    flexBasis: "calc(50% - 8px)" as unknown as number, // 2 cols on web with our gap
     minWidth: 220,
     flexGrow: 1,
     backgroundColor: semantic.surface,
     borderWidth: 2,
     borderColor: semantic.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: 18,
-    gap: 8,
+    gap: 12,
+    // Native shadow — web ignores this in favor of the inline boxShadow
+    // we set via the Pressable.
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
   cardHover: {
     borderColor: palette.brand500,
@@ -197,17 +255,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   iconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconLetter: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: fontWeight.bold,
-    letterSpacing: 0.5,
   },
   checkBadge: {
     width: 24,
@@ -251,9 +303,9 @@ const styles = StyleSheet.create({
   },
   continueBtn: {
     backgroundColor: palette.brand700,
-    paddingHorizontal: 22,
-    paddingVertical: 11,
-    borderRadius: radius.md,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 999,
   },
   continueBtnHover: {
     backgroundColor: palette.brand800,
@@ -263,7 +315,7 @@ const styles = StyleSheet.create({
   },
   continueText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: fontWeight.semibold,
   },
 });

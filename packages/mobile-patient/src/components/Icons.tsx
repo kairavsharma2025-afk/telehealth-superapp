@@ -201,3 +201,124 @@ export function CloseIcon({
     </Frame>
   );
 }
+
+// ─── Specialty icons (lucide paths) ─────────────────────────────────
+
+export function StethoscopeIcon({ size = 26, color = "#0D9E89", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path d="M11 2v2" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M5 2v2" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M8 15a6 6 0 0 0 12 0v-3" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Circle cx={20} cy={10} r={2} stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+    </Frame>
+  );
+}
+
+export function HeartIcon({ size = 26, color = "#DC2626", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path
+        d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+    </Frame>
+  );
+}
+
+export function SparklesIcon({ size = 26, color = "#EA580C", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path
+        d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+      <Path d="M20 3v4" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M22 5h-4" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M4 17v2" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M5 18H3" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+    </Frame>
+  );
+}
+
+export function BabyIcon({ size = 26, color = "#0891B2", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path d="M9 12h.01" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M15 12h.01" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path
+        d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+    </Frame>
+  );
+}
+
+export function BrainIcon({ size = 26, color = "#7C3AED", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path
+        d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+      <Path
+        d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+    </Frame>
+  );
+}
+
+export function BoneIcon({ size = 26, color = "#16A34A", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path
+        d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 .5.5 0 0 1-.5-.5 2.5 2.5 0 1 0-5 0c0 .81.7 1.8 0 2.5l-7 7c-.7.7-1.69 0-2.5 0a2.5 2.5 0 0 0 0 5c.28 0 .5.22.5.5a2.5 2.5 0 1 0 5 0c0-.81-.7-1.8 0-2.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+    </Frame>
+  );
+}
+
+export function VenusIcon({ size = 26, color = "#DB2777", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Circle cx={12} cy={9} r={6} stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M12 15v7" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+      <Path d="M9 19h6" stroke={color} strokeWidth={strokeWidth} {...SHARED} />
+    </Frame>
+  );
+}
+
+export function EarIcon({ size = 26, color = "#CA8A04", strokeWidth = 2 }: IconProps) {
+  return (
+    <Frame size={size}>
+      <Path
+        d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+      <Path
+        d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        {...SHARED}
+      />
+    </Frame>
+  );
+}
