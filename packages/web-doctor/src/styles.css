@@ -249,6 +249,9 @@ label {
     "sidebar topbar"
     "sidebar main";
   min-height: 100vh;
+  /* Below this, the sidebar + content lane stop being readable;
+     better to scroll horizontally than to crush the layout. */
+  min-width: 640px;
 }
 .app-sidebar {
   grid-area: sidebar;
@@ -398,10 +401,20 @@ label {
   justify-content: space-between;
   gap: 24px;
 }
+/* The left child holds the title + greeting line; without min-width:0
+   it can't shrink, which lets it push into the right-side meta /
+   bell / avatar cluster on narrower viewports. */
+.app-topbar > div:first-child {
+  min-width: 0;
+  overflow: hidden;
+}
 .app-topbar-title {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .app-topbar-meta {
   display: flex;
@@ -1327,6 +1340,12 @@ a.patient-row:hover { background: var(--color-surface-muted); }
 .kpi {
   position: relative;
   border-left-width: 4px;
+  /* Override the base .kpi `padding: 18px 20px` so the flex-column
+     text content (label / value / delta) clears the absolutely-
+     positioned 32px .kpi-icon at top-right.
+     20px right padding wasn't enough; 52px = 32px icon + 16px right
+     offset + 4px breathing room. */
+  padding: 18px 52px 18px 20px;
 }
 .kpi-accent-teal  { border-left-color: var(--color-brand-700); }
 .kpi-accent-amber { border-left-color: #f59e0b; }
@@ -1380,6 +1399,7 @@ button.danger-ghost:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex-shrink: 0;
 }
 .topbar-bell {
   position: relative;
