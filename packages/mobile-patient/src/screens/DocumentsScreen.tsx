@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Modal,
   Platform,
@@ -141,6 +142,43 @@ function categoryIcon(category: Category | null): string {
   return opt?.icon ?? "📄";
 }
 
+// Stored filenames are sometimes raw timestamps from older flows
+// (e.g. "test-document-1778220473288.png"). When that's the case,
+// surface a human-readable "<Category> – <Date>" instead. Real
+// filenames (with letters and meaning) pass through untouched.
+function friendlyName(
+  filename: string,
+  category: Category | null,
+  createdAt: string,
+): string {
+  const isTimestampJunk = /^test-document-\d{13}\.\w+$/i.test(filename);
+  if (!isTimestampJunk) return filename;
+  const label = category ? CATEGORY_LABEL[category] : "Document";
+  const when = new Date(createdAt).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${label} – ${when}`;
+}
+
+const CATEGORY_BADGE_COLOR: Record<Category, string> = {
+  lab_report: "#0891b2",
+  prescription: "#7c3aed",
+  imaging: "#dc2626",
+  insurance: "#16a34a",
+  other: "#64748b",
+};
+
+type FilterKey = "all" | "lab_report" | "prescription" | "imaging";
+
+const FILTER_PILLS: { key: FilterKey; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "lab_report", label: "Lab Reports" },
+  { key: "prescription", label: "Prescriptions" },
+  { key: "imaging", label: "Imaging" },
+];
+
 const STATUS_COLOR: Record<UploadStatus, { bg: string; fg: string }> = {
   pending: { bg: "#FEF3C7", fg: "#D97706" },
   uploaded: { bg: "#DCFCE7", fg: "#15803D" },
@@ -152,6 +190,8 @@ export function DocumentsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pendingAsset, setPendingAsset] = useState<PickedAsset | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const list = useQuery<ListResult, ApiError>({
     queryKey: ["uploads"],
@@ -237,7 +277,11 @@ export function DocumentsScreen() {
     }
   }, []);
 
-  const items = list.data?.items ?? [];
+  const allItems = list.data?.items ?? [];
+  const items =
+    filter === "all"
+      ? allItems
+      : allItems.filter((u) => u.category === filter);
 
   return (
     <View style={styles.root}>
@@ -247,6 +291,8 @@ export function DocumentsScreen() {
         trailing={
           <TouchableOpacity
             style={styles.addButton}
+            accessibilityRole="button"
+            accessibilityLabel="Upload a new document"
             onPress={() => void pickFile()}
             disabled={uploading}
           >
@@ -256,6 +302,36 @@ export function DocumentsScreen() {
       />
 
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
+
+      {/* Type filter bar */}
+      <View style={styles.filterRow}>
+        {FILTER_PILLS.map((p) => {
+          const active = filter === p.key;
+          const count =
+            p.key === "all"
+              ? allItems.length
+              : allItems.filter((u) => u.category === p.key).length;
+          return (
+            <TouchableOpacity
+              key={p.key}
+              accessibilityRole="button"
+              accessibilityLabel={`${p.label} (${count})`}
+              accessibilityState={{ selected: active }}
+              onPress={() => setFilter(p.key)}
+              style={[styles.filterPill, active && styles.filterPillActive]}
+            >
+              <Text
+                style={[
+                  styles.filterPillText,
+                  active && styles.filterPillTextActive,
+                ]}
+              >
+                {p.label} · {count}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {list.isPending ? (
         <View style={styles.center}>
@@ -269,7 +345,28 @@ export function DocumentsScreen() {
         </View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.muted}>No documents yet — tap “Upload” to share one.</Text>
+          <View style={styles.emptyCircle}>
+            <Text style={styles.emptyEmoji}>📄</Text>
+          </View>
+          <Text style={styles.emptyTitle}>
+            {filter === "all"
+              ? "No documents yet"
+              : `No ${FILTER_PILLS.find((p) => p.key === filter)?.label.toLowerCase() ?? "documents"} here`}
+          </Text>
+          <Text style={styles.emptySub}>
+            {filter === "all"
+              ? "Lab reports, prescriptions, and imaging files you share will appear here."
+              : "Try switching the filter to “All” or upload a new file."}
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyCta}
+            accessibilityRole="button"
+            accessibilityLabel="Upload your first document"
+            onPress={() => void pickFile()}
+            disabled={uploading}
+          >
+            <Text style={styles.emptyCtaText}>+ Upload a document</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -284,66 +381,107 @@ export function DocumentsScreen() {
               tintColor={palette.brand700}
             />
           }
-          renderItem={({ item }) => (
-            <View style={styles.row}>
-              <View style={styles.iconBubble}>
-                <Text style={styles.iconBubbleText}>{categoryIcon(item.category)}</Text>
-              </View>
-              <View style={styles.rowMain}>
-                <Text style={styles.filename} numberOfLines={1}>
-                  {item.filename}
-                </Text>
-                <Text style={styles.meta} numberOfLines={1}>
-                  {item.category ? CATEGORY_LABEL[item.category] : "Other"} ·{" "}
-                  {formatSize(item.sizeBytes)} · {formatWhen(item.createdAt)}
-                </Text>
-                <View style={styles.metaRow}>
-                  <View
-                    style={[
-                      styles.pill,
-                      { backgroundColor: STATUS_COLOR[item.status].bg },
-                    ]}
-                  >
-                    <Text
+          renderItem={({ item }) => {
+            const display = friendlyName(item.filename, item.category, item.createdAt);
+            const typeLabel = item.category ? CATEGORY_LABEL[item.category] : "Other";
+            const typeColor = item.category
+              ? CATEGORY_BADGE_COLOR[item.category]
+              : CATEGORY_BADGE_COLOR.other;
+            const isImage =
+              item.contentType.startsWith("image/") && item.status === "uploaded";
+            return (
+              <View style={styles.row}>
+                <View style={styles.iconBubble}>
+                  <Text style={styles.iconBubbleText}>{categoryIcon(item.category)}</Text>
+                </View>
+                <View style={styles.rowMain}>
+                  <Text style={styles.filename} numberOfLines={1}>
+                    {display}
+                  </Text>
+                  <View style={styles.badgeRow}>
+                    <View
+                      style={[styles.typeBadge, { backgroundColor: typeColor + "22", borderColor: typeColor + "55" }]}
+                    >
+                      <Text style={[styles.typeBadgeText, { color: typeColor }]}>
+                        {typeLabel}
+                      </Text>
+                    </View>
+                    <View
                       style={[
-                        styles.pillText,
-                        { color: STATUS_COLOR[item.status].fg },
+                        styles.pill,
+                        { backgroundColor: STATUS_COLOR[item.status].bg },
                       ]}
                     >
-                      {item.status === "uploaded" ? "Ready" : item.status}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.pillText,
+                          { color: STATUS_COLOR[item.status].fg },
+                        ]}
+                      >
+                        {item.status === "uploaded" ? "Ready" : item.status}
+                      </Text>
+                    </View>
                   </View>
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {formatSize(item.sizeBytes)} · {formatWhen(item.createdAt)}
+                  </Text>
+                </View>
+                <View style={styles.actions}>
+                  {isImage ? (
+                    <TouchableOpacity
+                      style={[styles.downloadBtn, styles.previewBtn]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Preview ${display}`}
+                      onPress={async () => {
+                        try {
+                          const detail = await api<DetailResponse>(
+                            `/uploads/${item.id}`,
+                          );
+                          if (detail.downloadUrl) setPreviewUrl(detail.downloadUrl);
+                        } catch (err: unknown) {
+                          setError(
+                            err instanceof Error ? err.message : "Preview failed",
+                          );
+                        }
+                      }}
+                    >
+                      <Text style={styles.previewBtnText}>Preview</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity
+                    style={[
+                      styles.downloadBtn,
+                      item.status !== "uploaded" && styles.downloadBtnDisabled,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Download ${display}`}
+                    onPress={() => void onOpen(item.id)}
+                    disabled={item.status !== "uploaded"}
+                  >
+                    <Text style={styles.downloadBtnText}>Download</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${display}`}
+                    onPress={() =>
+                      confirmAction({
+                        title: "Delete this document?",
+                        message:
+                          "Are you sure you want to delete this document? This cannot be undone.",
+                        confirmLabel: "Delete",
+                        destructive: true,
+                        onConfirm: () => remove.mutate(item.id),
+                      })
+                    }
+                    style={styles.deleteButton}
+                    disabled={remove.isPending}
+                  >
+                    <Text style={styles.deleteText}>Delete</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  style={[
-                    styles.downloadBtn,
-                    item.status !== "uploaded" && styles.downloadBtnDisabled,
-                  ]}
-                  onPress={() => void onOpen(item.id)}
-                  disabled={item.status !== "uploaded"}
-                >
-                  <Text style={styles.downloadBtnText}>Download</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() =>
-                    confirmAction({
-                      title: "Delete this document?",
-                      message: item.filename,
-                      confirmLabel: "Delete",
-                      destructive: true,
-                      onConfirm: () => remove.mutate(item.id),
-                    })
-                  }
-                  style={styles.deleteButton}
-                  disabled={remove.isPending}
-                >
-                  <Text style={styles.deleteText}>×</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+            );
+          }}
         />
       )}
 
@@ -386,6 +524,33 @@ export function DocumentsScreen() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+      </Modal>
+
+      {/* Image preview lightbox */}
+      <Modal
+        visible={previewUrl !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewUrl(null)}
+      >
+        <View style={styles.previewBackdrop}>
+          <TouchableOpacity
+            style={styles.previewClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close preview"
+            onPress={() => setPreviewUrl(null)}
+          >
+            <Text style={styles.previewCloseText}>✕</Text>
+          </TouchableOpacity>
+          {previewUrl ? (
+            <Image
+              source={{ uri: previewUrl }}
+              style={styles.previewImage}
+              resizeMode="contain"
+              accessibilityLabel="Document preview"
+            />
+          ) : null}
         </View>
       </Modal>
     </View>
@@ -472,18 +637,133 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
   },
   deleteButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: semantic.surfaceMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },
   deleteText: {
     color: semantic.danger,
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: space[4],
+    paddingTop: space[3],
+    paddingBottom: space[2],
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: semantic.surface,
+    borderWidth: 1,
+    borderColor: semantic.border,
+  },
+  filterPillActive: {
+    backgroundColor: palette.brand700,
+    borderColor: palette.brand700,
+  },
+  filterPillText: {
+    color: semantic.text,
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+  },
+  filterPillTextActive: { color: palette.white },
+  badgeRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginVertical: 4,
+    flexWrap: "wrap",
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
+  },
+  previewBtn: {
+    backgroundColor: palette.brand50,
+  },
+  previewBtnText: {
+    color: palette.brand800,
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+  },
+  emptyCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: palette.brand50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyEmoji: {
+    fontSize: 36,
+  },
+  emptyTitle: {
+    color: semantic.text,
+    fontSize: 17,
+    fontWeight: fontWeight.semibold,
+    marginBottom: 8,
+  },
+  emptySub: {
+    color: semantic.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+    maxWidth: 360,
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  emptyCta: {
+    backgroundColor: palette.brand700,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: radius.md,
+  },
+  emptyCtaText: {
+    color: palette.white,
+    fontSize: 14,
+    fontWeight: fontWeight.semibold,
+  },
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewClose: {
+    position: "absolute",
+    top: 24,
+    right: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  previewCloseText: {
+    color: palette.white,
     fontSize: 18,
     fontWeight: fontWeight.bold,
-    lineHeight: 20,
+  },
+  previewImage: {
+    width: "90%",
+    height: "85%",
   },
 
   modalBackdrop: {

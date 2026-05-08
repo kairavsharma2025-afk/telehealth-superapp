@@ -9,6 +9,7 @@ import {
 import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
 import { formatRelative } from "../lib/countdown";
 import { confirmAction } from "../lib/confirm";
+import { buildIcs, downloadIcs } from "../lib/ics";
 import { StatusPill, type AppointmentStatus } from "./StatusPill";
 
 export interface AppointmentItem {
@@ -90,6 +91,21 @@ export function AppointmentCard({
     });
   };
 
+  const handleAddToCalendar = () => {
+    const docName = doctorName(doctor, appointment.doctorId);
+    const ics = buildIcs({
+      uid: appointment.id,
+      startAt: appointment.startAt,
+      endAt: appointment.endAt,
+      title: `Appointment with ${docName}`,
+      description: appointment.reason
+        ? `Reason: ${appointment.reason}`
+        : "Telehealth consultation booked via Vela Health.",
+      location: `https://meet.jit.si/telehealth-${appointment.id}`,
+    });
+    downloadIcs(`vela-${appointment.id.slice(0, 8)}.ics`, ics);
+  };
+
   const handleJoin = () => {
     // Public Jitsi room keyed by appointment id — both patient and doctor
     // landing on the same URL join the same call. Phase 7 will swap this
@@ -163,10 +179,22 @@ export function AppointmentCard({
             {canCancel ? (
               <TouchableOpacity
                 style={[styles.action, styles.actionDanger]}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel this appointment"
                 onPress={handleCancel}
                 disabled={busy}
               >
                 <Text style={styles.actionDangerText}>Cancel</Text>
+              </TouchableOpacity>
+            ) : null}
+            {isUpcoming ? (
+              <TouchableOpacity
+                style={[styles.action, styles.actionSecondary]}
+                accessibilityRole="button"
+                accessibilityLabel="Add to calendar"
+                onPress={handleAddToCalendar}
+              >
+                <Text style={styles.actionSecondaryText}>Add to Calendar</Text>
               </TouchableOpacity>
             ) : null}
             {!canCancel && !isJoinable ? (
@@ -324,6 +352,16 @@ const styles = StyleSheet.create({
   },
   actionDangerText: {
     color: semantic.danger,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
+  actionSecondary: {
+    backgroundColor: semantic.surface,
+    borderWidth: 1,
+    borderColor: semantic.border,
+  },
+  actionSecondaryText: {
+    color: semantic.text,
     fontSize: 13,
     fontWeight: fontWeight.semibold,
   },

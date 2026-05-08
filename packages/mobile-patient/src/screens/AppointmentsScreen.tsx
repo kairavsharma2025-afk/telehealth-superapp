@@ -25,6 +25,7 @@ import { Logo } from "../components/Logo";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { fontWeight, palette, radius, semantic, space } from "../theme";
 import type { MainTabParamList } from "../../App";
+import { useTabRouter } from "../navigation/router";
 
 interface ListResult {
   items: AppointmentItem[];
@@ -89,6 +90,7 @@ function firstName(fullName: string): string {
 export function AppointmentsScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp<MainTabParamList>>();
+  const webRouter = useTabRouter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -213,8 +215,28 @@ export function AppointmentsScreen() {
             title={tab === "upcoming" ? "No appointments yet" : "Nothing here yet"}
             description={
               tab === "upcoming"
-                ? "Tap the Book tab to schedule your first visit with a doctor."
+                ? "You don't have any visits scheduled. Book your first to get started."
                 : "Past visits will show up here once they're completed."
+            }
+            action={
+              tab === "upcoming" ? (
+                <TouchableOpacity
+                  style={styles.retryBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Book your first appointment"
+                  onPress={() => {
+                    // On web, the "navigation" prop is a stub (no
+                    // react-navigation); use the WebShell tab router.
+                    if (typeof window !== "undefined") {
+                      webRouter.navigate("Book");
+                    } else {
+                      navigation.navigate("Book");
+                    }
+                  }}
+                >
+                  <Text style={styles.retryText}>Book your first appointment →</Text>
+                </TouchableOpacity>
+              ) : undefined
             }
           />
         </View>
