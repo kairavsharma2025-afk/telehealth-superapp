@@ -60,7 +60,34 @@ function initialsFor(profile: Profile, email: string | undefined): string {
   return email?.charAt(0).toUpperCase() ?? "?";
 }
 
-const FIELD_HINT = "Tap any field to edit, then save.";
+const DOB_DISPLAY_FMT = new Intl.DateTimeFormat(undefined, {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
+
+// Render a stored DOB (ISO datetime, YYYY-MM-DD, or null) as a friendly
+// long-form date for the read-only view.
+function formatDob(stored: string | null | undefined): string {
+  if (!stored) return "—";
+  // Accept both "2007-02-26T18:30:00.000Z" and "2007-02-26".
+  const d = new Date(stored);
+  if (Number.isNaN(d.getTime())) return stored;
+  return DOB_DISPLAY_FMT.format(d);
+}
+
+// Strip the time portion off an ISO timestamp so the input field
+// shows YYYY-MM-DD and not the full datetime string.
+function dobForInput(stored: string | null | undefined): string {
+  if (!stored) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(stored)) return stored;
+  const d = new Date(stored);
+  if (Number.isNaN(d.getTime())) return stored;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -74,7 +101,9 @@ export function ProfileScreen() {
 
   // Local edit buffer — fields stay disconnected from the cached profile
   // until "Save" so the user can revise without each keystroke triggering
-  // a network round-trip.
+  // a network round-trip. Read-only by default; an explicit Edit button
+  // toggles edit mode (desktop-friendly — no more "tap any field" hint).
+  const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -86,9 +115,19 @@ export function ProfileScreen() {
     if (profileQuery.data) {
       setFullName(profileQuery.data.fullName ?? "");
       setPhone(profileQuery.data.phone ?? "");
-      setDateOfBirth(profileQuery.data.dateOfBirth ?? "");
+      setDateOfBirth(dobForInput(profileQuery.data.dateOfBirth));
     }
   }, [profileQuery.data]);
+
+  const cancelEdit = () => {
+    if (profileQuery.data) {
+      setFullName(profileQuery.data.fullName ?? "");
+      setPhone(profileQuery.data.phone ?? "");
+      setDateOfBirth(dobForInput(profileQuery.data.dateOfBirth));
+    }
+    setFeedback(null);
+    setEditing(false);
+  };
 
   const dirty = useMemo(() => {
     const original = profileQuery.data;
@@ -110,6 +149,7 @@ export function ProfileScreen() {
     onSuccess: (data) => {
       qc.setQueryData(["me"], data);
       setFeedback({ kind: "ok", msg: "Profile saved." });
+      setEditing(false);
     },
     onError: (err) => {
       setFeedback({ kind: "err", msg: err.message });
@@ -142,8 +182,23 @@ export function ProfileScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.identityCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+          <View>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.uploadPhotoBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Upload profile photo"
+              onPress={() =>
+                setFeedback({
+                  kind: "ok",
+                  msg: "Photo uploads will be available once your account is fully verified.",
+                })
+              }
+            >
+              <Text style={styles.uploadPhotoText}>Upload photo</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.identityBody}>
             <Text style={styles.identityName}>{displayName}</Text>
@@ -154,12 +209,32 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>Your details</Text>
-        <Text style={styles.fieldHint}>{FIELD_HINT}</Text>
+        <View style={styles.detailsHeader}>
+          <Text style={styles.sectionLabel}>Your details</Text>
+          {!editing ? (
+            <TouchableOpacity
+              style={styles.editBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Edit your profile details"
+              onPress={() => setEditing(true)}
+            >
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
         {profileQuery.isPending ? (
           <View style={styles.loaderRow}>
             <ActivityIndicator color={palette.brand700} />
+          </View>
+        ) : !editing ? (
+          <View style={styles.fieldGroup}>
+            <ReadField label="Full name" value={profileQuery.data?.fullName ?? "—"} />
+            <ReadField label="Phone" value={profileQuery.data?.phone ?? "—"} />
+            <ReadField
+              label="Date of birth"
+              value={formatDob(profileQuery.data?.dateOfBirth)}
+            />
           </View>
         ) : (
           <View style={styles.fieldGroup}>
@@ -196,22 +271,35 @@ export function ProfileScreen() {
           </Text>
         ) : null}
 
-        <TouchableOpacity
-          style={[
-            styles.saveBtn,
-            (!dirty || save.isPending) && styles.saveBtnDisabled,
-          ]}
-          onPress={() => save.mutate()}
-          disabled={!dirty || save.isPending}
-        >
-          {save.isPending ? (
-            <ActivityIndicator color={palette.white} />
-          ) : (
-            <Text style={styles.saveBtnText}>
-              {dirty ? "Save changes" : "Saved"}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {editing ? (
+          <View style={styles.editActions}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel editing"
+              onPress={cancelEdit}
+              disabled={save.isPending}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.saveBtn,
+                (!dirty || save.isPending) && styles.saveBtnDisabled,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Save profile changes"
+              onPress={() => save.mutate()}
+              disabled={!dirty || save.isPending}
+            >
+              {save.isPending ? (
+                <ActivityIndicator color={palette.white} />
+              ) : (
+                <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <Text style={styles.sectionLabel}>Notification preferences</Text>
         <View style={styles.prefsCard}>
@@ -236,11 +324,6 @@ export function ProfileScreen() {
             onToggle={() => togglePref("smsReminders")}
           />
         </View>
-        <Text style={styles.fieldHint}>
-          Preferences sync with the platform once Phase 7 wires SES, Twilio, and
-          push delivery. For now they live on this device.
-        </Text>
-
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.aboutCard}>
           <AboutRow label="Product" value={brand.name} />
@@ -256,6 +339,15 @@ export function ProfileScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
+    </View>
+  );
+}
+
+function ReadField({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.readFieldValue}>{value}</Text>
     </View>
   );
 }
@@ -421,6 +513,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 6,
     paddingHorizontal: 0,
+  },
+  readFieldValue: {
+    color: semantic.text,
+    fontSize: 16,
+    paddingVertical: 6,
+  },
+  detailsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: space[6],
+    marginBottom: space[2],
+  },
+  editBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.brand700,
+    backgroundColor: palette.brand50,
+  },
+  editBtnText: {
+    color: palette.brand800,
+    fontSize: 13,
+    fontWeight: fontWeight.semibold,
+  },
+  editActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: space[3],
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: semantic.border,
+    backgroundColor: semantic.surface,
+    alignItems: "center",
+  },
+  cancelBtnText: {
+    color: semantic.text,
+    fontSize: 14,
+    fontWeight: fontWeight.semibold,
+  },
+  uploadPhotoBtn: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: semantic.surfaceMuted,
+    borderWidth: 1,
+    borderColor: semantic.border,
+    alignItems: "center",
+  },
+  uploadPhotoText: {
+    color: semantic.text,
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
   },
 
   feedbackOk: {
