@@ -6,7 +6,7 @@ const MAX_UPLOAD_BYTES_DEFAULT = 10 * 1024 * 1024;
 
 export const config = {
   nodeEnv: optionalEnv("NODE_ENV", "development"),
-  port: envInt("UPLOAD_PORT", 4004),
+  port: envInt("PORT", envInt("UPLOAD_PORT", 4004)),
   databaseUrl: requireEnv("DATABASE_URL"),
   jwtAccessSecret: requireEnv("JWT_ACCESS_SECRET"),
   s3: {

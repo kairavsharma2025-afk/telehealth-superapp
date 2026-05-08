@@ -2,7 +2,7 @@ import { envInt, optionalEnv, requireEnv } from "@telehealth/shared";
 
 export const config = {
   nodeEnv: optionalEnv("NODE_ENV", "development"),
-  port: envInt("NOTIFICATION_PORT", 4005),
+  port: envInt("PORT", envInt("NOTIFICATION_PORT", 4005)),
   databaseUrl: requireEnv("DATABASE_URL"),
   jwtAccessSecret: requireEnv("JWT_ACCESS_SECRET"),
   providers: {

@@ -2,7 +2,7 @@ import { envInt, optionalEnv, requireEnv } from "@telehealth/shared";
 
 export const config = {
   nodeEnv: optionalEnv("NODE_ENV", "development"),
-  port: envInt("GATEWAY_PORT", 4000),
+  port: envInt("PORT", envInt("GATEWAY_PORT", 4000)),
   jwtAccessSecret: requireEnv("JWT_ACCESS_SECRET"),
   upstreams: {
     auth: optionalEnv("AUTH_URL", `http://localhost:${envInt("AUTH_PORT", 4001)}`),
