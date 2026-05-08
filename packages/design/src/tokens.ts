@@ -4,18 +4,24 @@
 // both Vite and Metro.
 
 export const palette = {
-  // Brand — deep teal evokes calm + medical trust without the over-used
-  // tech-blue. Apollo / Practo / many telehealth brands use teal-greens.
-  brand50: "#F0FDFA",
+  // Brand — Vela teal. brand700 is the "primary" color used for active
+  // states, primary buttons, and accents. brand50 is the soft tint used
+  // for hover/selected backgrounds; brand200 is the mid value used for
+  // gradients (e.g. the appointment date chip).
+  brand50: "#E6F7F5", // primary-light
   brand100: "#CCFBF1",
-  brand200: "#99F6E4",
+  brand200: "#B2E8E2", // primary-mid (gradient stop)
   brand300: "#5EEAD4",
-  brand400: "#2DD4BF",
+  brand400: "#6EE7DF", // bright accent for sidebar active icon
   brand500: "#14B8A6",
   brand600: "#0D9488",
-  brand700: "#0F766E",
-  brand800: "#115E59",
-  brand900: "#134E4A",
+  brand700: "#0D9E89", // primary
+  brand800: "#0A7A6A", // primary-dark
+  brand900: "#0D2B2B", // sidebar gradient deep stop
+
+  // Accent — warm coral for CTAs that need urgency (cancel, alert)
+  accent500: "#F26B5B",
+  accent50: "#FDECEA",
 
   // Neutrals — slate. Gives text depth without being pure grey.
   slate50: "#F8FAFC",
@@ -27,7 +33,10 @@ export const palette = {
   slate600: "#475569",
   slate700: "#334155",
   slate800: "#1E293B",
-  slate900: "#0F172A",
+  slate900: "#1A2332", // text-primary — slightly warmer than pure slate
+
+  // Page canvas — soft blue-gray. White cards float on top.
+  pageBg: "#F4F6F9",
 
   white: "#FFFFFF",
   black: "#000000",
@@ -48,7 +57,7 @@ export const palette = {
 // Semantic aliases — what consumers reach for. Switching brand colour
 // later means changing this map, not 80 component files.
 export const semantic = {
-  bg: palette.slate50,
+  bg: palette.pageBg, // soft blue-gray canvas
   surface: palette.white,
   surfaceElevated: palette.white,
   surfaceMuted: palette.slate100,
@@ -143,19 +152,19 @@ export const lineHeight = {
 // web consumes *.web (a CSS box-shadow string).
 export const shadow = {
   sm: {
-    web: "0 1px 2px 0 rgba(15, 23, 42, 0.06)",
+    web: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
     native: {
-      shadowColor: "#0F172A",
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.06,
-      shadowRadius: 2,
+      shadowRadius: 3,
       elevation: 1,
     },
   },
   md: {
-    web: "0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04)",
+    web: "0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)",
     native: {
-      shadowColor: "#0F172A",
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.08,
       shadowRadius: 12,
@@ -163,13 +172,24 @@ export const shadow = {
     },
   },
   lg: {
-    web: "0 12px 32px -8px rgba(15, 23, 42, 0.16), 0 4px 8px -4px rgba(15, 23, 42, 0.08)",
+    web: "0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05)",
     native: {
-      shadowColor: "#0F172A",
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.12,
-      shadowRadius: 24,
+      shadowColor: "#000000",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.10,
+      shadowRadius: 30,
       elevation: 8,
+    },
+  },
+  // Brand-tinted shadow used on cards/buttons for warmth
+  card: {
+    web: "0 2px 8px rgba(13,158,137,0.08)",
+    native: {
+      shadowColor: "#0D9E89",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 2,
     },
   },
 } as const;

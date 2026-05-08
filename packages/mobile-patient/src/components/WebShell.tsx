@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { brand } from "../theme";
-import { fontWeight, palette, radius, semantic, space } from "../theme";
+import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
 import { Logo } from "./Logo";
 import {
   BellIcon,
@@ -20,11 +20,51 @@ import {
 import { useAuth } from "../lib/auth";
 import { useTabRouter, type WebTab } from "../navigation/router";
 
-// Hover/active palette per spec — light teal #e6f4f1 hover, slightly
-// darker #d0ece8 active. Locally defined so we don't pollute the design
-// tokens with keyboard-state-only colors.
-const HOVER_BG = "#e6f4f1";
-const ACTIVE_BG = "#d0ece8";
+// Sidebar uses a deep teal gradient on web — defined inline so callers
+// don't need to import expo-linear-gradient (RN Web reads
+// `backgroundImage` from styles directly).
+const SIDEBAR_GRADIENT =
+  "linear-gradient(160deg, #0d2b2b 0%, #0a3d35 60%, #0d4a40 100%)";
+
+// Translucent overlays for nav-row hover / active on the dark sidebar.
+const NAV_HOVER_BG = "rgba(255,255,255,0.07)";
+const NAV_ACTIVE_BG = "rgba(255,255,255,0.12)";
+
+// Inject Inter font + custom scrollbar + page-enter animation once on
+// mount. Cheaper and more reliable than reaching into the Expo HTML
+// template; runs only on web because document is undefined on native.
+function ensureGlobalStyles() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("vela-global-styles")) return;
+
+  const fontLink = document.createElement("link");
+  fontLink.rel = "stylesheet";
+  fontLink.href =
+    "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap";
+  document.head.appendChild(fontLink);
+
+  const style = document.createElement("style");
+  style.id = "vela-global-styles";
+  style.textContent = `
+    html, body, #root { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    body { background: #f4f6f9; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-thumb { background: #c8e6e2; border-radius: 999px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    @keyframes velaFadeSlideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .vela-fade-slide { animation: velaFadeSlideUp 300ms ease forwards; }
+    @keyframes velaPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(13,158,137,0.5); }
+      70%  { box-shadow: 0 0 0 10px rgba(13,158,137,0); }
+      100% { box-shadow: 0 0 0 0 rgba(13,158,137,0); }
+    }
+    .vela-pulse { animation: velaPulse 1.6s ease infinite; }
+  `;
+  document.head.appendChild(style);
+}
 
 interface NavItem {
   key: WebTab;
@@ -59,12 +99,28 @@ export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const handle = user?.email?.split("@")[0] ?? "patient";
 
+  useEffect(() => {
+    ensureGlobalStyles();
+  }, []);
+
   // Keep <title> aligned with the active tab so the browser tab + history
   // entries are meaningful, and never read "undefined".
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.title = `${labelFor(tab)} · Vela Health`;
     }
+  }, [tab]);
+
+  // Ref used to retrigger the page-enter animation on tab change.
+  const contentRef = useRef<View | null>(null);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const node = contentRef.current as unknown as HTMLElement | null;
+    if (!node) return;
+    node.classList.remove("vela-fade-slide");
+    // force reflow to restart the animation
+    void node.offsetWidth;
+    node.classList.add("vela-fade-slide");
   }, [tab]);
 
   if (isMobile) {
@@ -121,9 +177,23 @@ export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
         Skip to main content
       </a>
 
-      <View style={styles.sidebar}>
+      <View
+        style={[
+          styles.sidebar,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { backgroundImage: SIDEBAR_GRADIENT } as any,
+        ]}
+      >
         <View style={styles.brandBlock}>
-          <Logo size={28} color={palette.brand700} />
+          <View
+            style={[
+              styles.brandLogoBg,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { filter: "drop-shadow(0 0 8px rgba(255,255,255,0.15))" } as any,
+            ]}
+          >
+            <Logo size={30} color="#fff" />
+          </View>
           <View>
             <Text style={styles.brandName}>{brand.name}</Text>
             <Text style={styles.brandSub}>Patient Console</Text>
@@ -144,14 +214,19 @@ export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
         </View>
 
         <View style={styles.foot}>
-          <Text style={styles.footEmail} numberOfLines={1}>
-            {user?.email ?? "Signed out"}
-          </Text>
-          {user ? (
-            <View style={styles.rolePill}>
-              <Text style={styles.rolePillText}>{user.role}</Text>
-            </View>
-          ) : null}
+          <View style={styles.footAvatar}>
+            <Text style={styles.footAvatarText}>
+              {user?.email?.charAt(0).toUpperCase() ?? "?"}
+            </Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.footEmail} numberOfLines={1}>
+              {user?.email ?? "Signed out"}
+            </Text>
+            {user ? (
+              <Text style={styles.footRole}>{user.role}</Text>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -163,7 +238,7 @@ export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
               {greeting}, {handle}.
             </Text>
           </View>
-          <Text style={styles.topMeta}>
+          <Text style={styles.topDate}>
             {new Date().toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",
@@ -171,8 +246,21 @@ export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
             })}
           </Text>
         </View>
+        {/* Thin teal accent strip below the topbar */}
+        <View
+          style={[
+            styles.accentStrip,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            { backgroundImage: "linear-gradient(90deg, #0d9e89, #6ee7df, transparent)" } as any,
+          ]}
+        />
         {/* nativeID lets the skip-link target #vela-main work on web. */}
-        <View style={styles.content} nativeID="vela-main">
+        <View
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ref={contentRef as any}
+          style={styles.content}
+          nativeID="vela-main"
+        >
           {children}
         </View>
       </View>
@@ -204,20 +292,20 @@ function NavRow({
         const focused =
           "focused" in state && (state as { focused?: boolean }).focused === true;
         const out: ViewStyle[] = [styles.navRow];
-        if (hovered && !active) out.push({ backgroundColor: HOVER_BG });
-        if (active) out.push({ backgroundColor: ACTIVE_BG });
+        if (hovered && !active) out.push({ backgroundColor: NAV_HOVER_BG });
+        if (active) out.push(styles.navRowActive);
         if (focused) out.push(styles.navRowFocused);
         return out;
       }}
     >
       <Icon
         size={18}
-        color={active ? palette.brand800 : semantic.textMuted}
+        color={active ? palette.brand400 : "rgba(255,255,255,0.6)"}
       />
       <Text
         style={[
           styles.navLabel,
-          active && { color: palette.brand800, fontWeight: fontWeight.semibold },
+          active && { color: "#fff", fontWeight: fontWeight.semibold },
         ]}
       >
         {item.label}
@@ -299,56 +387,73 @@ const styles = StyleSheet.create({
   sidebar: {
     width: SIDEBAR_W,
     height: "100%",
-    backgroundColor: semantic.surface,
-    borderRightWidth: 1,
-    borderRightColor: semantic.border,
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    // backgroundImage is applied inline (not StyleSheet) since RN's
+    // ViewStyle types don't include it. On native, the
+    // backgroundColor fallback below is what renders.
+    backgroundColor: "#0d2b2b",
+    paddingHorizontal: 14,
+    paddingTop: 24,
     paddingBottom: 16,
     gap: space[5],
   },
   brandBlock: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     paddingHorizontal: 8,
+    marginBottom: 6,
+  },
+  brandLogoBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: palette.brand700,
+    alignItems: "center",
+    justifyContent: "center",
   },
   brandName: {
-    color: semantic.text,
-    fontSize: 16,
-    fontWeight: fontWeight.semibold,
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: fontWeight.bold,
     letterSpacing: -0.2,
   },
   brandSub: {
-    color: semantic.textMuted,
+    color: "rgba(255,255,255,0.5)",
     fontSize: 11,
+    marginTop: 2,
   },
-  navList: { flex: 1, gap: 4 },
+  navList: { flex: 1, gap: 2 },
   navRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingHorizontal: 12,
+    paddingLeft: 14,
+    paddingRight: 12,
     paddingVertical: 10,
     borderRadius: radius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: "transparent",
+  },
+  navRowActive: {
+    backgroundColor: NAV_ACTIVE_BG,
+    borderLeftColor: palette.brand700,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
   },
   navRowFocused: {
-    // 2px teal focus ring per spec — drawn as outline via web style.
-    // RN Web honors these CSS-style outline props; on native they're
-    // ignored. RN's StyleSheet types accept them so no override needed.
     outlineStyle: "solid" as unknown as undefined,
-    outlineColor: palette.brand700 as unknown as undefined,
+    outlineColor: palette.brand400 as unknown as undefined,
     outlineWidth: 2 as unknown as undefined,
     outlineOffset: 2 as unknown as undefined,
   },
   navLabel: {
-    color: semantic.text,
+    color: "rgba(255,255,255,0.75)",
     fontSize: 14,
     fontWeight: fontWeight.medium,
     flex: 1,
   },
   badge: {
-    backgroundColor: semantic.danger,
+    backgroundColor: palette.accent500,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -362,31 +467,42 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
   },
   foot: {
-    backgroundColor: semantic.surfaceMuted,
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
     padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  footAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.brand700,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footAvatarText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: fontWeight.bold,
   },
   footEmail: {
-    color: semantic.text,
-    fontSize: 13,
+    color: "#fff",
+    fontSize: 12,
     fontWeight: fontWeight.semibold,
   },
-  rolePill: {
-    alignSelf: "flex-start",
-    marginTop: 6,
-    backgroundColor: palette.brand50,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  rolePillText: {
-    color: palette.brand800,
+  footRole: {
+    color: "rgba(255,255,255,0.6)",
     fontSize: 10,
-    fontWeight: fontWeight.bold,
+    fontWeight: fontWeight.medium,
     textTransform: "uppercase",
     letterSpacing: 0.6,
+    marginTop: 2,
   },
-  main: { flex: 1, height: "100%" },
+  main: { flex: 1, height: "100%", backgroundColor: semantic.bg },
   topbar: {
     height: TOPBAR_H,
     backgroundColor: semantic.surface,
@@ -396,14 +512,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    ...nativeShadow.sm,
   },
   topTitle: {
     color: semantic.text,
-    fontSize: 18,
-    fontWeight: fontWeight.semibold,
-    letterSpacing: -0.2,
+    fontSize: 20,
+    fontWeight: fontWeight.bold,
+    letterSpacing: -0.4,
   },
   topMeta: { color: semantic.textMuted, fontSize: 13 },
+  topDate: {
+    color: palette.slate400,
+    fontSize: 13,
+    fontWeight: fontWeight.medium,
+  },
+  accentStrip: {
+    height: 3,
+    backgroundColor: palette.brand700,
+  },
   content: { flex: 1 },
   // Mobile (<768px): collapse sidebar, show bottom tab bar.
   mobileShell: {
