@@ -106,7 +106,15 @@ export function StepSpecialty({
         </View>
       )}
 
-      <View style={styles.footer}>
+      <View
+        style={[
+          styles.footer,
+          // Once a specialty is picked the Continue bar pins to the
+          // bottom of the viewport so the patient doesn't have to
+          // scroll past the grid to advance.
+          selected ? styles.footerSticky : null,
+        ]}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Continue to choose a doctor and time"
@@ -301,6 +309,20 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: "flex-end",
     paddingTop: space[2],
+  },
+  // Web-only — RN ignores "sticky". Pinning to the bottom of the
+  // ScrollView's viewport keeps the Continue button visible without
+  // forcing the patient to scroll past every specialty card.
+  footerSticky: {
+    position: "sticky" as unknown as undefined,
+    bottom: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: semantic.surface,
+    borderRadius: 16,
+    boxShadow: "0 8px 24px rgba(15,23,42,0.10)" as unknown as undefined,
+    zIndex: 10,
   },
   continueBtn: {
     backgroundColor: palette.brand700,
