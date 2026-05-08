@@ -19,10 +19,16 @@ import { TabRouterProvider, useTabRouter } from "./src/navigation/router";
 import { AppointmentsScreen } from "./src/screens/AppointmentsScreen";
 import { BookScreen } from "./src/screens/BookScreen";
 import { DocumentsScreen } from "./src/screens/DocumentsScreen";
-import { HomeScreen } from "./src/screens/HomeScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { NotificationsScreen } from "./src/screens/NotificationsScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
+import {
+  BellIcon,
+  CalendarDaysIcon,
+  FileTextIcon,
+  PlusCircleIcon,
+  UserIcon,
+} from "./src/components/Icons";
 import { fontWeight, palette, semantic } from "./src/theme";
 
 const isWeb = Platform.OS === "web";
@@ -71,41 +77,46 @@ const tabScreenOptions: BottomTabNavigationOptions = {
   tabBarInactiveTintColor: semantic.textMuted,
 };
 
-function tabIcon(glyph: string) {
-  function TabIcon({ color, size }: { color: string; size: number }) {
-    return <Text style={{ color, fontSize: size, lineHeight: size + 2 }}>{glyph}</Text>;
-  }
-  return TabIcon;
-}
-
-// Native bottom-tab navigator. Untouched on iOS / Android / Expo Go.
+// Native bottom-tab navigator. Used on iOS / Android / Expo Go AND on
+// web below the responsive breakpoint (handled by WebShellRoot).
 function NativeTabs() {
   return (
     <Tab.Navigator screenOptions={tabScreenOptions}>
       <Tab.Screen
         name="Appointments"
         component={AppointmentsScreen}
-        options={{ tabBarIcon: tabIcon("🗓") }}
+        options={{
+          tabBarIcon: ({ color, size }) => <CalendarDaysIcon size={size} color={color} />,
+        }}
       />
       <Tab.Screen
         name="Book"
         component={BookScreen}
-        options={{ tabBarIcon: tabIcon("➕") }}
+        options={{
+          tabBarLabel: "Book",
+          tabBarIcon: ({ color, size }) => <PlusCircleIcon size={size} color={color} />,
+        }}
       />
       <Tab.Screen
         name="Documents"
         component={DocumentsScreen}
-        options={{ tabBarIcon: tabIcon("📄") }}
+        options={{
+          tabBarIcon: ({ color, size }) => <FileTextIcon size={size} color={color} />,
+        }}
       />
       <Tab.Screen
         name="Notifications"
         component={NotificationsScreen}
-        options={{ tabBarIcon: tabIcon("🔔") }}
+        options={{
+          tabBarIcon: ({ color, size }) => <BellIcon size={size} color={color} />,
+        }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
-        options={{ tabBarIcon: tabIcon("👤") }}
+        options={{
+          tabBarIcon: ({ color, size }) => <UserIcon size={size} color={color} />,
+        }}
       />
     </Tab.Navigator>
   );
@@ -113,12 +124,11 @@ function NativeTabs() {
 
 // Web sidebar layout — mirrors the doctor portal's chrome (sidebar +
 // topbar) and routes between screens via a tiny in-memory state
-// machine instead of react-navigation.
+// machine instead of react-navigation. Default tab is Appointments
+// (the Dashboard was removed).
 function WebContent() {
   const { tab } = useTabRouter();
   switch (tab) {
-    case "Home":
-      return <HomeScreen />;
     case "Appointments":
       return <AppointmentsScreen />;
     case "Book":
@@ -134,7 +144,7 @@ function WebContent() {
 
 function WebShellRoot() {
   return (
-    <TabRouterProvider initial="Home">
+    <TabRouterProvider initial="Appointments">
       <WebShell>
         <WebContent />
       </WebShell>

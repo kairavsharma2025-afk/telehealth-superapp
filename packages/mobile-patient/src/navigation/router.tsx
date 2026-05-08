@@ -12,7 +12,6 @@ import {
 // state + a navigate() helper so any screen can change tab.
 
 export type WebTab =
-  | "Home"
   | "Appointments"
   | "Book"
   | "Documents"
@@ -33,7 +32,7 @@ export function TabRouterProvider({
   initial?: WebTab;
   children: ReactNode;
 }) {
-  const [tab, setTab] = useState<WebTab>(initial ?? "Home");
+  const [tab, setTab] = useState<WebTab>(initial ?? "Appointments");
   const value = useMemo<TabRouter>(
     () => ({ tab, navigate: (next) => setTab(next) }),
     [tab],
@@ -49,5 +48,5 @@ export function TabRouterProvider({
 export function useTabRouter(): TabRouter {
   const ctx = useContext(TabRouterContext);
   if (ctx) return ctx;
-  return { tab: "Home", navigate: () => undefined };
+  return { tab: "Appointments", navigate: () => undefined };
 }

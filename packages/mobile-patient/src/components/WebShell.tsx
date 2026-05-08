@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -8,41 +9,86 @@ import {
 import { brand } from "../theme";
 import { fontWeight, palette, radius, semantic, space } from "../theme";
 import { Logo } from "./Logo";
+import {
+  BellIcon,
+  CalendarDaysIcon,
+  FileTextIcon,
+  PlusCircleIcon,
+  UserIcon,
+} from "./Icons";
 import { useAuth } from "../lib/auth";
 import { useTabRouter, type WebTab } from "../navigation/router";
+
+// Hover/active palette per spec — light teal #e6f4f1 hover, slightly
+// darker #d0ece8 active. Locally defined so we don't pollute the design
+// tokens with keyboard-state-only colors.
+const HOVER_BG = "#e6f4f1";
+const ACTIVE_BG = "#d0ece8";
 
 interface NavItem {
   key: WebTab;
   label: string;
-  group: "primary" | "secondary";
-  icon: string;
+  Icon: (p: { size?: number; color?: string }) => React.JSX.Element;
 }
 
 const NAV: readonly NavItem[] = [
-  { key: "Home", label: "Dashboard", group: "primary", icon: "▥" },
-  { key: "Appointments", label: "Appointments", group: "primary", icon: "🗓" },
-  { key: "Book", label: "Book a doctor", group: "primary", icon: "➕" },
-  { key: "Documents", label: "Documents", group: "secondary", icon: "📄" },
-  { key: "Notifications", label: "Notifications", group: "secondary", icon: "🔔" },
-  { key: "Profile", label: "Profile", group: "secondary", icon: "👤" },
+  { key: "Appointments", label: "Appointments", Icon: CalendarDaysIcon },
+  { key: "Book", label: "Book a Doctor", Icon: PlusCircleIcon },
+  { key: "Documents", label: "Documents", Icon: FileTextIcon },
+  { key: "Notifications", label: "Notifications", Icon: BellIcon },
+  { key: "Profile", label: "Profile", Icon: UserIcon },
 ];
 
 interface WebShellProps {
   children: React.ReactNode;
+  unreadNotifications?: number;
 }
 
-export function WebShell({ children }: WebShellProps) {
+export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
   const { user } = useAuth();
   const { tab, navigate } = useTabRouter();
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const handle = user?.email?.split("@")[0] ?? "patient";
-  const primary = NAV.filter((n) => n.group === "primary");
-  const secondary = NAV.filter((n) => n.group === "secondary");
+
+  // Keep <title> aligned with the active tab so the browser tab + history
+  // entries are meaningful, and never read "undefined".
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = `${labelFor(tab)} · Vela Health`;
+    }
+  }, [tab]);
 
   return (
     <View style={styles.shell}>
+      {/* Skip link — first focusable element on the page; visible only
+          when keyboard-focused (CSS in skipLinkVisible state via web focus). */}
+      <a
+        href="#vela-main"
+        style={{
+          position: "absolute",
+          left: -9999,
+          top: 8,
+          padding: "8px 12px",
+          background: palette.brand700,
+          color: "#fff",
+          borderRadius: 6,
+          textDecoration: "none",
+          fontSize: 14,
+          fontWeight: 600,
+          zIndex: 1000,
+        }}
+        onFocus={(e) => {
+          (e.currentTarget as HTMLElement).style.left = "8px";
+        }}
+        onBlur={(e) => {
+          (e.currentTarget as HTMLElement).style.left = "-9999px";
+        }}
+      >
+        Skip to main content
+      </a>
+
       <View style={styles.sidebar}>
         <View style={styles.brandBlock}>
           <Logo size={28} color={palette.brand700} />
@@ -52,25 +98,14 @@ export function WebShell({ children }: WebShellProps) {
           </View>
         </View>
 
+        {/* Flat nav list — no group labels, per spec. */}
         <View style={styles.navList}>
-          <Text style={styles.navGroupLabel}>Care</Text>
-          {primary.map((item) => (
+          {NAV.map((item) => (
             <NavRow
               key={item.key}
               item={item}
               active={tab === item.key}
-              onPress={() => navigate(item.key)}
-            />
-          ))}
-
-          <Text style={[styles.navGroupLabel, { marginTop: space[4] }]}>
-            Records
-          </Text>
-          {secondary.map((item) => (
-            <NavRow
-              key={item.key}
-              item={item}
-              active={tab === item.key}
+              badgeCount={item.key === "Notifications" ? unreadNotifications : 0}
               onPress={() => navigate(item.key)}
             />
           ))}
@@ -104,7 +139,10 @@ export function WebShell({ children }: WebShellProps) {
             })}
           </Text>
         </View>
-        <View style={styles.content}>{children}</View>
+        {/* nativeID lets the skip-link target #vela-main work on web. */}
+        <View style={styles.content} nativeID="vela-main">
+          {children}
+        </View>
       </View>
     </View>
   );
@@ -113,35 +151,37 @@ export function WebShell({ children }: WebShellProps) {
 function NavRow({
   item,
   active,
+  badgeCount,
   onPress,
 }: {
   item: NavItem;
   active: boolean;
+  badgeCount: number;
   onPress: () => void;
 }) {
+  const Icon = item.Icon;
   return (
     <Pressable
       onPress={onPress}
-      // react-native-web types Pressable's style state differently from
-      // react-native. Read hovered defensively; on native it's
-      // always undefined which collapses to the inactive style.
+      accessibilityRole="link"
+      accessibilityLabel={item.label}
+      accessibilityState={{ selected: active }}
       style={(state) => {
         const hovered =
           "hovered" in state && (state as { hovered?: boolean }).hovered === true;
+        const focused =
+          "focused" in state && (state as { focused?: boolean }).focused === true;
         const out: ViewStyle[] = [styles.navRow];
-        if (hovered && !active) out.push(styles.navRowHover);
-        if (active) out.push(styles.navRowActive);
+        if (hovered && !active) out.push({ backgroundColor: HOVER_BG });
+        if (active) out.push({ backgroundColor: ACTIVE_BG });
+        if (focused) out.push(styles.navRowFocused);
         return out;
       }}
     >
-      <Text
-        style={[
-          styles.navIcon,
-          active && { color: palette.brand800 },
-        ]}
-      >
-        {item.icon}
-      </Text>
+      <Icon
+        size={18}
+        color={active ? palette.brand800 : semantic.textMuted}
+      />
       <Text
         style={[
           styles.navLabel,
@@ -150,18 +190,22 @@ function NavRow({
       >
         {item.label}
       </Text>
+      {badgeCount > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badgeCount > 99 ? "99+" : badgeCount}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
 
 function labelFor(tab: WebTab): string {
   switch (tab) {
-    case "Home": return "Dashboard";
     case "Appointments": return "Appointments";
-    case "Book": return "Book a doctor";
+    case "Book": return "Book a Doctor";
     case "Documents": return "Documents";
     case "Notifications": return "Notifications";
-    case "Profile": return "Profile & settings";
+    case "Profile": return "Profile & Settings";
   }
 }
 
@@ -201,36 +245,43 @@ const styles = StyleSheet.create({
     color: semantic.textMuted,
     fontSize: 11,
   },
-  navList: { flex: 1, gap: 2 },
-  navGroupLabel: {
-    color: semantic.textSubtle,
-    fontSize: 10,
-    fontWeight: fontWeight.bold,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    paddingHorizontal: 8,
-    marginBottom: space[2],
-  },
+  navList: { flex: 1, gap: 4 },
   navRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: radius.md,
   },
-  navRowHover: { backgroundColor: semantic.surfaceMuted },
-  navRowActive: { backgroundColor: palette.brand50 },
-  navIcon: {
-    color: semantic.textMuted,
-    fontSize: 16,
-    width: 18,
-    textAlign: "center",
+  navRowFocused: {
+    // 2px teal focus ring per spec — drawn as outline via web style.
+    // RN Web honors these CSS-style outline props; on native they're
+    // ignored. RN's StyleSheet types accept them so no override needed.
+    outlineStyle: "solid" as unknown as undefined,
+    outlineColor: palette.brand700 as unknown as undefined,
+    outlineWidth: 2 as unknown as undefined,
+    outlineOffset: 2 as unknown as undefined,
   },
   navLabel: {
     color: semantic.text,
     fontSize: 14,
     fontWeight: fontWeight.medium,
+    flex: 1,
+  },
+  badge: {
+    backgroundColor: semantic.danger,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
   },
   foot: {
     backgroundColor: semantic.surfaceMuted,
