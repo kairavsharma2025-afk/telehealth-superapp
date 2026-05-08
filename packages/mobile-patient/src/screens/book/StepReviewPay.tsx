@@ -68,7 +68,6 @@ export function StepReviewPay({
   const [reason, setReason] = useState("");
   const [appointmentType, setAppointmentType] =
     useState<AppointmentType>("video");
-  const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [confirmed, setConfirmed] = useState(false);
 
   const stats = fakeStatsFor(doctor.id);
@@ -89,8 +88,6 @@ export function StepReviewPay({
       setConfirmed(true);
     },
   });
-
-  const formValid = card.number.length >= 12 && card.expiry.length >= 4 && card.cvv.length >= 3 && card.name.trim().length > 0;
 
   if (confirmed) {
     return (
@@ -165,79 +162,31 @@ export function StepReviewPay({
         />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Payment</Text>
-        <View style={styles.feeRow}>
-          <Text style={styles.feeLabel}>Consultation fee</Text>
-          <Text style={styles.feeValue}>${stats.feeUsd.toFixed(2)}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Confirm booking"
+        disabled={mutation.isPending}
+        onPress={() => mutation.mutate()}
+        style={hoverable((hovered) => [
+          styles.payBtn,
+          mutation.isPending && styles.payBtnDisabled,
+          hovered && !mutation.isPending && styles.payBtnHover,
+        ])}
+      >
+        {mutation.isPending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.payText}>Confirm Booking</Text>
+        )}
+      </Pressable>
+
+      {mutation.isError ? (
+        <View style={styles.error}>
+          <Text style={styles.errorText}>
+            Couldn't book this slot: {mutation.error.message}
+          </Text>
         </View>
-
-        <CardInput
-          label="Card number"
-          placeholder="1234 5678 9012 3456"
-          value={card.number}
-          onChange={(v) => setCard({ ...card, number: v.replace(/[^0-9 ]/g, "") })}
-          maxLength={19}
-        />
-        <View style={styles.cardRow}>
-          <View style={{ flex: 1 }}>
-            <CardInput
-              label="Expiry (MM/YY)"
-              placeholder="MM/YY"
-              value={card.expiry}
-              onChange={(v) => setCard({ ...card, expiry: v })}
-              maxLength={5}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <CardInput
-              label="CVV"
-              placeholder="123"
-              value={card.cvv}
-              onChange={(v) => setCard({ ...card, cvv: v.replace(/[^0-9]/g, "") })}
-              maxLength={4}
-            />
-          </View>
-        </View>
-        <CardInput
-          label="Cardholder name"
-          placeholder="As shown on card"
-          value={card.name}
-          onChange={(v) => setCard({ ...card, name: v })}
-          maxLength={40}
-        />
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Pay and confirm booking"
-          disabled={!formValid || mutation.isPending}
-          onPress={() => mutation.mutate()}
-          style={hoverable((hovered) => [
-            styles.payBtn,
-            (!formValid || mutation.isPending) && styles.payBtnDisabled,
-            hovered && formValid && !mutation.isPending && styles.payBtnHover,
-          ])}
-        >
-          {mutation.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.payText}>Pay & Confirm Booking</Text>
-          )}
-        </Pressable>
-
-        <View style={styles.trust}>
-          <Text style={styles.trustEmoji}>🔒</Text>
-          <Text style={styles.trustText}>Secured with 256-bit encryption</Text>
-        </View>
-
-        {mutation.isError ? (
-          <View style={styles.error}>
-            <Text style={styles.errorText}>
-              Couldn't book this slot: {mutation.error.message}
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      ) : null}
 
       <View style={styles.footer}>
         <Pressable

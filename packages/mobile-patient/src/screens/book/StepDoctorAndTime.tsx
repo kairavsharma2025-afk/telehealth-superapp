@@ -26,9 +26,14 @@ import {
   timeFmt,
   type AvailabilityResult,
   type AvailableDoctor,
-  type Duration,
   type DoctorSlot,
 } from "./shared";
+
+// Default consultation length used when expanding the server's
+// suggested slot into multiple time options. The duration picker UI
+// was dropped per product spec; if the patient wants longer they
+// rebook.
+const DEFAULT_DURATION_MIN = 30 as const;
 
 type WindowKey = "today" | "tomorrow" | "week" | "custom";
 
@@ -88,19 +93,18 @@ export function StepDoctorAndTime({
   onBack,
 }: StepDoctorAndTimeProps) {
   const [windowKey, setWindowKey] = useState<WindowKey>("week");
-  const [duration, setDuration] = useState<Duration>(30);
   const [search, setSearch] = useState("");
 
   const { start, end } = windowFor(windowKey);
 
   const query = useQuery<AvailabilityResult, ApiError>({
-    queryKey: ["availability", specialty, windowKey, duration],
+    queryKey: ["availability", specialty, windowKey],
     queryFn: () => {
       const qs = new URLSearchParams();
       qs.set("specialty", specialty);
       qs.set("start", start.toISOString());
       qs.set("end", end.toISOString());
-      qs.set("duration", String(duration));
+      qs.set("duration", String(DEFAULT_DURATION_MIN));
       return api<AvailabilityResult>(`/users/doctors/availability?${qs.toString()}`);
     },
   });
@@ -147,20 +151,6 @@ export function StepDoctorAndTime({
                 label={label}
                 active={windowKey === key}
                 onPress={() => setWindowKey(key)}
-              />
-            ))}
-          </View>
-
-          <Text style={[styles.sectionLabel, { marginTop: space[4] }]}>
-            Duration
-          </Text>
-          <View style={styles.pillRow}>
-            {[30, 45, 60].map((d) => (
-              <PillBtn
-                key={d}
-                label={`${d} min`}
-                active={duration === d}
-                onPress={() => setDuration(d as Duration)}
               />
             ))}
           </View>
@@ -222,7 +212,6 @@ export function StepDoctorAndTime({
                   <DoctorCard
                     key={d.id}
                     doctor={d}
-                    duration={duration}
                     isPickedDoctor={selectedDoctorId === d.id}
                     selectedSlot={
                       selectedDoctorId === d.id ? selectedSlot : null
@@ -294,13 +283,11 @@ export function StepDoctorAndTime({
 
 function DoctorCard({
   doctor,
-  duration,
   isPickedDoctor,
   selectedSlot,
   onPickSlot,
 }: {
   doctor: AvailableDoctor;
-  duration: Duration;
   isPickedDoctor: boolean;
   selectedSlot: DoctorSlot | null;
   onPickSlot: (slot: DoctorSlot) => void;
@@ -310,7 +297,7 @@ function DoctorCard({
   const name = doctorDisplayName(doctor);
   const initials = initialsOf(name);
 
-  const allSlots = expandSlots(doctor, duration);
+  const allSlots = expandSlots(doctor, DEFAULT_DURATION_MIN);
   const visibleSlots = showAll ? allSlots : allSlots.slice(0, 4);
 
   return (
