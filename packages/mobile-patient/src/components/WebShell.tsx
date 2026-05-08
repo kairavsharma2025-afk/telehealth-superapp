@@ -3,6 +3,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type ViewStyle,
 } from "react-native";
@@ -44,9 +45,15 @@ interface WebShellProps {
   unreadNotifications?: number;
 }
 
+// Mobile-vs-desktop breakpoint per spec: below 768px we ditch the
+// sidebar and show a bottom tab bar instead.
+const MOBILE_BREAKPOINT = 768;
+
 export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
   const { user } = useAuth();
   const { tab, navigate } = useTabRouter();
+  const { width } = useWindowDimensions();
+  const isMobile = width < MOBILE_BREAKPOINT;
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -59,6 +66,31 @@ export function WebShell({ children, unreadNotifications = 0 }: WebShellProps) {
       document.title = `${labelFor(tab)} · Vela Health`;
     }
   }, [tab]);
+
+  if (isMobile) {
+    return (
+      <View style={styles.mobileShell}>
+        <View style={styles.mobileTopbar}>
+          <Logo size={24} color={palette.brand700} />
+          <Text style={styles.mobileTitle}>{labelFor(tab)}</Text>
+        </View>
+        <View style={styles.mobileContent} nativeID="vela-main">
+          {children}
+        </View>
+        <View style={styles.bottomBar}>
+          {NAV.map((item) => (
+            <BottomTab
+              key={item.key}
+              item={item}
+              active={tab === item.key}
+              badgeCount={item.key === "Notifications" ? unreadNotifications : 0}
+              onPress={() => navigate(item.key)}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.shell}>
@@ -199,6 +231,52 @@ function NavRow({
   );
 }
 
+function BottomTab({
+  item,
+  active,
+  badgeCount,
+  onPress,
+}: {
+  item: NavItem;
+  active: boolean;
+  badgeCount: number;
+  onPress: () => void;
+}) {
+  const Icon = item.Icon;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={item.label}
+      accessibilityState={{ selected: active }}
+      style={styles.bottomTab}
+    >
+      <View>
+        <Icon
+          size={22}
+          color={active ? palette.brand700 : semantic.textMuted}
+        />
+        {badgeCount > 0 ? (
+          <View style={styles.bottomBadge}>
+            <Text style={styles.bottomBadgeText}>
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <Text
+        style={[
+          styles.bottomLabel,
+          active && { color: palette.brand700, fontWeight: fontWeight.semibold },
+        ]}
+        numberOfLines={1}
+      >
+        {item.label}
+      </Text>
+    </Pressable>
+  );
+}
+
 function labelFor(tab: WebTab): string {
   switch (tab) {
     case "Appointments": return "Appointments";
@@ -327,4 +405,63 @@ const styles = StyleSheet.create({
   },
   topMeta: { color: semantic.textMuted, fontSize: 13 },
   content: { flex: 1 },
+  // Mobile (<768px): collapse sidebar, show bottom tab bar.
+  mobileShell: {
+    flex: 1,
+    backgroundColor: semantic.bg,
+  },
+  mobileTopbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: semantic.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: semantic.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  mobileTitle: {
+    color: semantic.text,
+    fontSize: 16,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: -0.2,
+  },
+  mobileContent: { flex: 1 },
+  bottomBar: {
+    flexDirection: "row",
+    backgroundColor: semantic.surface,
+    borderTopWidth: 1,
+    borderTopColor: semantic.border,
+    paddingTop: 8,
+    paddingBottom: 10,
+    paddingHorizontal: 4,
+  },
+  bottomTab: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    gap: 4,
+  },
+  bottomLabel: {
+    fontSize: 11,
+    color: semantic.textMuted,
+  },
+  bottomBadge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    backgroundColor: semantic.danger,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+  },
 });
