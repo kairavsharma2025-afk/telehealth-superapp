@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { createElement, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -55,7 +56,10 @@ function nextRoundedHour(): Date {
   return d;
 }
 
-function windowFor(key: WindowKey): { start: Date; end: Date } {
+function windowFor(
+  key: WindowKey,
+  customDate: string,
+): { start: Date; end: Date } {
   const start = nextRoundedHour();
   switch (key) {
     case "today": {
@@ -71,15 +75,34 @@ function windowFor(key: WindowKey): { start: Date; end: Date } {
       te.setHours(17, 0, 0, 0);
       return { start: ts, end: te };
     }
-    case "week":
-    case "custom": {
+    case "week": {
       const end = new Date(start);
       const daysUntilSunday = (7 - end.getDay()) % 7;
       end.setDate(end.getDate() + (daysUntilSunday || 7));
       end.setHours(23, 0, 0, 0);
       return { start, end };
     }
+    case "custom": {
+      // Patient picked a specific calendar date — show all slots
+      // 00:00 → 23:59 of that day. If they haven't picked one yet
+      // we default to today so the API call still returns
+      // something useful instead of failing.
+      const iso = /^\d{4}-\d{2}-\d{2}$/.test(customDate)
+        ? customDate
+        : todayIso();
+      const ts = new Date(`${iso}T00:00:00`);
+      const te = new Date(`${iso}T23:59:00`);
+      return { start: ts, end: te };
+    }
   }
+}
+
+function todayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function StepDoctorAndTime({
@@ -93,12 +116,13 @@ export function StepDoctorAndTime({
   onBack,
 }: StepDoctorAndTimeProps) {
   const [windowKey, setWindowKey] = useState<WindowKey>("week");
+  const [customDate, setCustomDate] = useState<string>(() => todayIso());
   const [search, setSearch] = useState("");
 
-  const { start, end } = windowFor(windowKey);
+  const { start, end } = windowFor(windowKey, customDate);
 
   const query = useQuery<AvailabilityResult, ApiError>({
-    queryKey: ["availability", specialty, windowKey],
+    queryKey: ["availability", specialty, windowKey, customDate],
     queryFn: () => {
       const qs = new URLSearchParams();
       qs.set("specialty", specialty);
@@ -144,6 +168,7 @@ export function StepDoctorAndTime({
                 ["today", "Today"],
                 ["tomorrow", "Tomorrow"],
                 ["week", "This week"],
+                ["custom", "Pick a date"],
               ] as const
             ).map(([key, label]) => (
               <PillBtn
@@ -154,6 +179,43 @@ export function StepDoctorAndTime({
               />
             ))}
           </View>
+          {windowKey === "custom" ? (
+            <View style={styles.dateInputWrap}>
+              {Platform.OS === "web" ? (
+                // Native HTML date picker on web — gives the patient
+                // a real calendar popover. RN's TextInput has no
+                // type=date equivalent.
+                createElement("input", {
+                  type: "date",
+                  value: customDate,
+                  min: todayIso(),
+                  onChange: (e: { target: { value: string } }) =>
+                    setCustomDate(e.target.value),
+                  "aria-label": "Pick a date",
+                  style: {
+                    width: "100%",
+                    padding: "10px 12px",
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                    color: semantic.text,
+                    background: semantic.bg,
+                    border: `1px solid ${semantic.border}`,
+                    borderRadius: 8,
+                    outline: "none",
+                  },
+                })
+              ) : (
+                <TextInput
+                  value={customDate}
+                  onChangeText={setCustomDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={semantic.textMuted}
+                  style={styles.dateInputFallback}
+                  accessibilityLabel="Pick a date"
+                />
+              )}
+            </View>
+          ) : null}
 
           <Text style={[styles.sectionLabel, { marginTop: space[4] }]}>
             Search by name
@@ -481,6 +543,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
+  },
+  dateInputWrap: {
+    marginTop: 10,
+  },
+  dateInputFallback: {
+    backgroundColor: semantic.bg,
+    borderWidth: 1,
+    borderColor: semantic.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: semantic.text,
   },
   pill: {
     paddingHorizontal: 12,
