@@ -13,7 +13,10 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = "/api";
+// Dev: Vite's `/api` proxy forwards to the local gateway (vite.config.ts).
+// Prod: VITE_API_URL is set at build time on Vercel to the deployed gateway
+// origin (e.g. https://api-gateway-xxx.up.railway.app).
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 
 interface FetchOptions {
   method?: string;
