@@ -175,17 +175,46 @@ export function fakeStatsFor(id: string): {
   };
 }
 
+// Clinic-hours window the patient UI restricts itself to. Server
+// availability ignores hours of the day (the seed scatters
+// appointments across all 24h), so without this clamp the slot pills
+// would offer 11 PM / 1 AM / 3 AM bookings — clearly not real.
+const BUSINESS_HOUR_START = 9; // 9:00 AM
+const BUSINESS_HOUR_END = 18; // 6:00 PM (last accepted START)
+
+// Snap a Date to the next moment that lies within business hours.
+// If it's already in-window we return it unchanged; before 9 AM bumps
+// to 9 AM same day; at/after 6 PM bumps to 9 AM next day.
+function clampToBusinessHours(d: Date): Date {
+  const out = new Date(d);
+  const hour = out.getHours();
+  if (hour < BUSINESS_HOUR_START) {
+    out.setHours(BUSINESS_HOUR_START, 0, 0, 0);
+  } else if (hour >= BUSINESS_HOUR_END) {
+    out.setDate(out.getDate() + 1);
+    out.setHours(BUSINESS_HOUR_START, 0, 0, 0);
+  }
+  return out;
+}
+
 // Expand the server's single suggested slot into up to 4 candidate
-// slots offset by 30/60/90 min. The `bookAppointment` API will still
-// validate against real availability when the user submits.
+// slots offset by 60/120/180 min, all clamped to clinic hours
+// (9 AM – 6 PM). The `bookAppointment` API will still validate
+// against real availability when the user submits.
 export function expandSlots(d: AvailableDoctor, duration: Duration): DoctorSlot[] {
-  const start = new Date(d.suggestedStartAt);
+  const base = clampToBusinessHours(new Date(d.suggestedStartAt));
   const offsets = [0, 60, 120, 180];
-  return offsets.map((min) => {
-    const s = new Date(start.getTime() + min * 60_000);
+  const slots: DoctorSlot[] = [];
+  for (const min of offsets) {
+    const s = new Date(base.getTime() + min * 60_000);
+    // If the offset pushes past 6 PM, drop it rather than offer a
+    // late-evening slot. Better to show 2 valid options than 4 with
+    // bogus midnight times.
+    if (s.getHours() >= BUSINESS_HOUR_END) continue;
     const e = new Date(s.getTime() + duration * 60_000);
-    return { startAt: s.toISOString(), endAt: e.toISOString() };
-  });
+    slots.push({ startAt: s.toISOString(), endAt: e.toISOString() });
+  }
+  return slots;
 }
 
 export const dateFmt = new Intl.DateTimeFormat(undefined, {
