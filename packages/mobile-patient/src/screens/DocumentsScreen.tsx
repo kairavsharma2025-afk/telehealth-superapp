@@ -581,9 +581,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: semantic.bg },
   addButton: {
     backgroundColor: palette.brand700,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radius.md,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   addButtonText: {
     color: palette.white,
@@ -674,16 +674,16 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 8,
     paddingHorizontal: space[4],
     paddingTop: space[3],
     paddingBottom: space[2],
   },
   filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: semantic.surface,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 50,
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: semantic.border,
   },
@@ -692,9 +692,9 @@ const styles = StyleSheet.create({
     borderColor: palette.brand700,
   },
   filterPillText: {
-    color: semantic.text,
-    fontSize: 12,
-    fontWeight: fontWeight.semibold,
+    color: semantic.textMuted,
+    fontSize: 13,
+    fontWeight: fontWeight.medium,
   },
   filterPillTextActive: { color: palette.white },
   badgeRow: {

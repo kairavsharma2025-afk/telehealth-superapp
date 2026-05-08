@@ -23,7 +23,7 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { Logo } from "../components/Logo";
 import { ScreenHeader } from "../components/ScreenHeader";
-import { fontWeight, palette, radius, semantic, space } from "../theme";
+import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
 import type { MainTabParamList } from "../../App";
 import { useTabRouter } from "../navigation/router";
 
@@ -326,21 +326,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: semantic.surfaceMuted,
     padding: 4,
-    borderRadius: radius.md,
-    gap: 2,
+    borderRadius: 50,
+    gap: 4,
   },
   tab: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: space[3],
-    borderRadius: 6,
-    gap: 6,
+    borderRadius: 50,
+    gap: 8,
   },
   tabActive: {
     backgroundColor: semantic.surface,
+    ...nativeShadow.sm,
   },
   tabLabel: {
     fontSize: 13,
@@ -349,14 +350,16 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: semantic.text,
+    fontWeight: fontWeight.semibold,
   },
   countBubble: {
     backgroundColor: semantic.borderStrong,
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-    borderRadius: 9999,
-    minWidth: 20,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
     alignItems: "center",
+    justifyContent: "center",
   },
   countBubbleActive: {
     backgroundColor: palette.brand700,
@@ -365,6 +368,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: fontWeight.semibold,
     color: semantic.textMuted,
+    lineHeight: 14,
   },
   countTextActive: {
     color: palette.white,

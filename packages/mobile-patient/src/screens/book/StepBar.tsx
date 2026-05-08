@@ -104,17 +104,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   circle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: semantic.border,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#fff",
     borderWidth: 2,
     borderColor: semantic.border,
     alignItems: "center",
     justifyContent: "center",
   },
   circleActive: {
-    backgroundColor: "#fff",
+    backgroundColor: palette.brand700,
     borderColor: palette.brand700,
   },
   circleDone: {
@@ -123,11 +123,11 @@ const styles = StyleSheet.create({
   },
   circleNum: {
     color: semantic.textMuted,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: fontWeight.bold,
   },
   circleNumActive: {
-    color: palette.brand700,
+    color: "#fff",
   },
   label: {
     color: semantic.textMuted,

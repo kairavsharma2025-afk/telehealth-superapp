@@ -231,8 +231,8 @@ function Detail({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: semantic.surface,
-    borderRadius: radius.lg,
-    padding: space[4],
+    borderRadius: 16,
+    padding: 24,
     borderWidth: 1,
     borderColor: semantic.border,
     ...nativeShadow.sm,
@@ -243,35 +243,35 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: space[4],
+    gap: 20,
   },
   timeChip: {
     backgroundColor: palette.brand50,
-    borderRadius: radius.md,
-    paddingHorizontal: space[3],
-    paddingVertical: space[3],
-    minWidth: 88,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    minWidth: 90,
     alignItems: "center",
     justifyContent: "center",
   },
   timeChipDay: {
-    fontSize: 10,
-    fontWeight: fontWeight.bold,
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
     color: palette.brand700,
-    letterSpacing: 0.6,
+    letterSpacing: 1,
     textTransform: "uppercase",
   },
   timeChipTime: {
     fontSize: 20,
     fontWeight: fontWeight.bold,
     color: semantic.text,
-    marginTop: 4,
+    marginTop: 6,
     letterSpacing: -0.3,
   },
   timeChipDate: {
     fontSize: 12,
     color: semantic.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   body: {
     flex: 1,
@@ -279,16 +279,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headline: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: fontWeight.semibold,
     color: semantic.text,
+    lineHeight: 17 * 1.4,
   },
   specialty: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: fontWeight.medium,
     color: semantic.textMuted,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
+    marginTop: 4,
   },
   metaRow: {
     flexDirection: "row",
@@ -300,6 +302,7 @@ const styles = StyleSheet.create({
   countdown: {
     fontSize: 12,
     color: semantic.textMuted,
+    marginLeft: 8,
   },
   chevron: {
     color: semantic.textSubtle,

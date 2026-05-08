@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { brand } from "../theme";
-import { fontWeight, nativeShadow, palette, radius, semantic, space } from "../theme";
+import { fontWeight, palette, radius, semantic } from "../theme";
 import { Logo } from "./Logo";
 import {
   BellIcon,
@@ -375,7 +375,7 @@ function labelFor(tab: WebTab): string {
   }
 }
 
-const SIDEBAR_W = 240;
+const SIDEBAR_W = 260;
 const TOPBAR_H = 64;
 
 const styles = StyleSheet.create({
@@ -391,17 +391,21 @@ const styles = StyleSheet.create({
     // ViewStyle types don't include it. On native, the
     // backgroundColor fallback below is what renders.
     backgroundColor: "#0d2b2b",
-    paddingHorizontal: 14,
-    paddingTop: 24,
-    paddingBottom: 16,
-    gap: space[5],
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 20,
+    gap: 0,
   },
   brandBlock: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 8,
-    marginBottom: 6,
+    paddingTop: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+    marginBottom: 16,
   },
   brandLogoBg: {
     width: 44,
@@ -422,14 +426,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-  navList: { flex: 1, gap: 2 },
+  navList: { flex: 1, gap: 4 },
   navRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingLeft: 14,
-    paddingRight: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: radius.md,
     borderLeftWidth: 3,
     borderLeftColor: "transparent",
@@ -451,6 +453,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: fontWeight.medium,
     flex: 1,
+    marginLeft: 10, // 10px gap between icon and text per spec
   },
   badge: {
     backgroundColor: palette.accent500,
@@ -467,11 +470,12 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
   },
   foot: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    marginTop: "auto" as unknown as number,
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)",
+    padding: 20,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -508,29 +512,45 @@ const styles = StyleSheet.create({
     backgroundColor: semantic.surface,
     borderBottomWidth: 1,
     borderBottomColor: semantic.border,
-    paddingHorizontal: 32,
+    paddingHorizontal: 40,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    ...nativeShadow.sm,
   },
   topTitle: {
     color: semantic.text,
-    fontSize: 20,
+    fontSize: 26,
     fontWeight: fontWeight.bold,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
-  topMeta: { color: semantic.textMuted, fontSize: 13 },
+  topMeta: {
+    color: semantic.textMuted,
+    fontSize: 14,
+    fontWeight: fontWeight.regular,
+    lineHeight: 14 * 1.6,
+  },
   topDate: {
     color: palette.slate400,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: fontWeight.medium,
   },
+  // The accent strip stays in the JSX but rendered transparent so the
+  // topbar's bottom-border is the only divider — per "remove the thick
+  // colored line under the header".
   accentStrip: {
-    height: 3,
-    backgroundColor: palette.brand700,
+    height: 0,
+    backgroundColor: "transparent",
   },
-  content: { flex: 1 },
+  content: {
+    flex: 1,
+    // Centered content lane on big screens. Per-screen views still set
+    // their own internal padding (existing ScreenHeader / list pads),
+    // so we don't double-pad here.
+    maxWidth: 960,
+    width: "100%",
+    marginLeft: "auto",
+    marginRight: "auto",
+  },
   // Mobile (<768px): collapse sidebar, show bottom tab bar.
   mobileShell: {
     flex: 1,
