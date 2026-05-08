@@ -1,6 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyState } from "../components/EmptyState";
+import { useToast } from "../components/Toast";
 
 interface Appointment {
   id: string;
@@ -97,19 +101,28 @@ function titleCase(name: string): string {
     .join(" ");
 }
 
-function displayName(
-  id: string,
+interface DisplayInfo {
+  text: string;
+  /** True when we couldn't find the user's real name and fell back. */
+  unknown: boolean;
+}
+
+function displayInfo(
   info: LookupItem | undefined,
   fallback: "patient" | "doctor",
-): string {
+): DisplayInfo {
   const role = info?.role ?? fallback;
   const name = info?.fullName?.trim();
   if (name) {
-    return role === "doctor" ? `Dr. ${titleCase(name)}` : titleCase(name);
+    return {
+      text: role === "doctor" ? `Dr. ${titleCase(name)}` : titleCase(name),
+      unknown: false,
+    };
   }
-  return role === "doctor"
-    ? `Doctor #${id.slice(0, 8)}`
-    : `Patient #${id.slice(0, 8)}`;
+  return {
+    text: role === "doctor" ? "Unknown Doctor" : "Unknown Patient",
+    unknown: true,
+  };
 }
 
 function cancel(id: string): Promise<Appointment> {
@@ -134,9 +147,33 @@ function fmtRange(startAt: string, endAt: string): string {
   return `${s} → ${e}`;
 }
 
+type StatusFilter =
+  | "all"
+  | "scheduled"
+  | "confirmed"
+  | "completed"
+  | "cancelled";
+
 export function AppointmentsPage() {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const [searchParams] = useSearchParams();
   const [range, setRange] = useState<RangeKey>("week-window");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const initial = searchParams.get("status");
+    if (
+      initial === "scheduled" ||
+      initial === "confirmed" ||
+      initial === "completed" ||
+      initial === "cancelled"
+    ) {
+      return initial;
+    }
+    return "all";
+  });
+  const [showReason, setShowReason] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState<Appointment | null>(null);
+
   const dateRange = useMemo(() => rangeWindow(range), [range]);
 
   const query = useQuery<ListResult, ApiError>({
@@ -144,12 +181,40 @@ export function AppointmentsPage() {
     queryFn: () => listAll(dateRange),
   });
 
-  const cancelMut = useMutation<Appointment, ApiError, string>({
-    mutationFn: (id) => cancel(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["all-appointments"] }),
+  const cancelMut = useMutation<Appointment, ApiError, Appointment>({
+    mutationFn: (a) => cancel(a.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-appointments"] });
+      toast.show("Appointment cancelled.", "success");
+    },
+    onError: (err) => {
+      toast.show(err.message || "Cancel failed.", "error");
+    },
   });
 
-  const items = query.data?.items ?? [];
+  // Sync the URL ?status= deep link from the Overview cards to local
+  // state. Re-runs when the user navigates back/forward.
+  useEffect(() => {
+    const initial = searchParams.get("status");
+    if (
+      initial === "scheduled" ||
+      initial === "confirmed" ||
+      initial === "completed" ||
+      initial === "cancelled" ||
+      initial === "all"
+    ) {
+      setStatusFilter(initial);
+    }
+  }, [searchParams]);
+
+  const allItems = query.data?.items ?? [];
+  const items = useMemo(
+    () =>
+      statusFilter === "all"
+        ? allItems
+        : allItems.filter((a) => a.status === statusFilter),
+    [allItems, statusFilter],
+  );
 
   const idBatches = useMemo(() => {
     const ids = new Set<string>();
@@ -219,7 +284,19 @@ export function AppointmentsPage() {
             <option value="past-month">Past 30 days</option>
             <option value="all">All time</option>
           </select>
-          <span className="muted">{items.length} rows</span>
+          <label className="muted" htmlFor="status-filter">Status</label>
+          <select
+            id="status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            aria-label="Filter by status"
+          >
+            <option value="all">All statuses</option>
+            <option value="scheduled">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
         </div>
       </header>
 
@@ -240,7 +317,26 @@ export function AppointmentsPage() {
       <div className="card">
         <div className="card-header">
           <h2>All appointments</h2>
-          <span className="muted">{items.length} rows</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              className="secondary"
+              onClick={() => setShowReason((s) => !s)}
+              aria-pressed={showReason}
+              style={{ padding: "5px 12px", fontSize: "var(--font-size-xs)" }}
+            >
+              {showReason ? "Hide Reason column" : "Show Reason column"}
+            </button>
+            <span className="muted">
+              {items.length} {items.length === 1 ? "row" : "rows"}
+            </span>
+          </div>
         </div>
         <table className="data-table">
           <thead>
@@ -248,7 +344,7 @@ export function AppointmentsPage() {
               <th>When</th>
               <th>Patient</th>
               <th>Doctor</th>
-              <th>Reason</th>
+              {showReason ? <th>Reason</th> : null}
               <th>Status</th>
               <th></th>
             </tr>
@@ -256,43 +352,114 @@ export function AppointmentsPage() {
           <tbody>
             {query.isPending ? (
               <tr>
-                <td colSpan={6} className="muted" style={{ padding: 24 }}>
+                <td
+                  colSpan={showReason ? 6 : 5}
+                  className="muted"
+                  style={{ padding: 24 }}
+                >
                   Loading…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted" style={{ padding: 24 }}>
-                  No appointments yet.
+                <td colSpan={showReason ? 6 : 5} style={{ padding: 0 }}>
+                  <EmptyState
+                    title="No results found"
+                    description={
+                      statusFilter !== "all"
+                        ? `No ${statusFilter} appointments in this window.`
+                        : "Nothing in this window. Try a wider range."
+                    }
+                    action={
+                      statusFilter !== "all" || range !== "week-window" ? (
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setStatusFilter("all");
+                            setRange("week-window");
+                          }}
+                        >
+                          Clear filters
+                        </button>
+                      ) : undefined
+                    }
+                  />
                 </td>
               </tr>
             ) : (
-              items.map((a) => (
-                <tr key={a.id}>
-                  <td>{fmtRange(a.startAt, a.endAt)}</td>
-                  <td>{displayName(a.patientId, lookupMap.get(a.patientId), "patient")}</td>
-                  <td>{displayName(a.doctorId, lookupMap.get(a.doctorId), "doctor")}</td>
-                  <td className="muted">{a.reason ?? "—"}</td>
-                  <td>
-                    <span className={`pill pill-${a.status}`}>{a.status}</span>
-                  </td>
-                  <td className="actions">
-                    {a.status === "scheduled" || a.status === "confirmed" ? (
-                      <button
-                        className="danger"
-                        disabled={cancelMut.isPending}
-                        onClick={() => cancelMut.mutate(a.id)}
-                      >
-                        Force cancel
-                      </button>
+              items.map((a) => {
+                const patient = displayInfo(
+                  lookupMap.get(a.patientId),
+                  "patient",
+                );
+                const doctor = displayInfo(
+                  lookupMap.get(a.doctorId),
+                  "doctor",
+                );
+                return (
+                  <tr key={a.id}>
+                    <td>{fmtRange(a.startAt, a.endAt)}</td>
+                    <td className={patient.unknown ? "muted" : ""}>
+                      {patient.text}
+                    </td>
+                    <td className={doctor.unknown ? "muted" : ""}>
+                      {doctor.text}
+                    </td>
+                    {showReason ? (
+                      <td className="muted">{a.reason ?? "—"}</td>
                     ) : null}
-                  </td>
-                </tr>
-              ))
+                    <td>
+                      <span className={`pill pill-${a.status}`}>{a.status}</span>
+                    </td>
+                    <td className="actions">
+                      {a.status === "scheduled" || a.status === "confirmed" ? (
+                        <button
+                          className="danger"
+                          disabled={cancelMut.isPending}
+                          onClick={() => setPendingCancel(a)}
+                        >
+                          Force cancel
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={pendingCancel !== null}
+        title="Cancel this appointment?"
+        description={
+          pendingCancel ? (
+            <>
+              Force-cancel the appointment on{" "}
+              <strong>
+                {new Date(pendingCancel.startAt).toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </strong>
+              ? The patient and doctor will both lose this slot.
+            </>
+          ) : null
+        }
+        confirmLabel="Force cancel"
+        destructive
+        busy={cancelMut.isPending}
+        onCancel={() => setPendingCancel(null)}
+        onConfirm={() => {
+          if (!pendingCancel) return;
+          cancelMut.mutate(pendingCancel, {
+            onSettled: () => setPendingCancel(null),
+          });
+        }}
+      />
     </div>
   );
 }

@@ -12,6 +12,11 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   {
+    to: "/",
+    label: "Overview",
+    icon: <Icon path="M3 12 12 4 21 12 M5 10v10h14V10" />,
+  },
+  {
     to: "/users",
     label: "Users",
     icon: <Icon path="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z M3 21a9 9 0 0 1 18 0" />,
@@ -24,14 +29,26 @@ const NAV: NavItem[] = [
 ];
 
 const LABEL_BY_PATH: Record<string, string> = {
+  "/": "Overview",
   "/users": "User management",
   "/appointments": "Appointment oversight",
 };
 
+function avatarInitials(email: string | undefined): string {
+  if (!email) return "?";
+  const local = email.split("@")[0] ?? "";
+  const parts = local.split(/[._-]+/).filter(Boolean);
+  const first = parts[0]?.charAt(0).toUpperCase() ?? "";
+  const second = parts[1]?.charAt(0).toUpperCase() ?? "";
+  return (first + second) || first || "?";
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const title = LABEL_BY_PATH[location.pathname] ?? "Admin";
+  const title =
+    LABEL_BY_PATH[location.pathname] ??
+    (location.pathname.startsWith("/users/") ? "User management" : "Admin");
 
   return (
     <div className="layout">
@@ -50,6 +67,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === "/"}
               className={({ isActive }) => (isActive ? "active" : "")}
             >
               <span className="icon" aria-hidden="true">
@@ -61,9 +79,26 @@ export function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-line">{user?.email ?? "Signed out"}</div>
-          {user ? <span className="pill pill-admin" style={{ marginTop: 6 }}>{user.role}</span> : null}
-          <button onClick={logout}>Sign out</button>
+          <div className="sidebar-user">
+            <div className="sidebar-avatar" aria-hidden="true">
+              {avatarInitials(user?.email)}
+            </div>
+            <div className="sidebar-user-meta">
+              <div className="user-line" title={user?.email ?? "Signed out"}>
+                {user?.email ?? "Signed out"}
+              </div>
+              {user ? (
+                <span className="pill pill-admin">{user.role}</span>
+              ) : null}
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            aria-label="Sign out"
+            className="sidebar-signout"
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 

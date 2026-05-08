@@ -506,3 +506,365 @@ label.checkbox input { width: auto; }
 
 .muted { color: var(--color-text-muted); }
 .error { color: var(--color-danger); font-size: var(--font-size-sm); }
+
+/* ─── Phase 1+2 admin redesign styles ───────────────────── */
+
+/* Sidebar footer: avatar + email + signout, pinned at the bottom */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.sidebar-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5EEAD4, #14B8A6);
+  color: #0f3a37;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-user-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar-user-meta .user-line {
+  font-size: 12px;
+  color: #fff;
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-user-meta .pill-admin {
+  align-self: flex-start;
+}
+.sidebar-signout {
+  width: 100%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.sidebar-signout:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+/* Search box (Users page) */
+.search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.search-box svg {
+  position: absolute;
+  left: 10px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.search-box input {
+  padding: 7px 10px 7px 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  min-width: 220px;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.search-box input:focus {
+  border-color: var(--color-brand-700);
+  box-shadow: 0 0 0 3px rgba(13, 158, 137, 0.15);
+}
+
+/* Sortable column header buttons */
+.th-sort-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.th-sort-btn:hover {
+  color: var(--color-text);
+}
+.th-sort-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Clickable rows on the users table */
+.row-clickable {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.row-clickable:hover,
+.row-clickable:focus-visible {
+  background: var(--color-surface-muted);
+  outline: none;
+}
+.row-clickable:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-brand-700);
+}
+.row-email-link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+}
+.row-email-link:hover {
+  color: var(--color-brand-800);
+  text-decoration: underline;
+}
+
+/* Pagination footer */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+.pagination-actions {
+  display: flex;
+  gap: 8px;
+}
+.pagination-actions button {
+  padding: 6px 14px;
+  font-size: var(--font-size-xs);
+}
+
+/* Status pills — soft variants used on user detail page */
+.pill-active {
+  background: #DCFCE7;
+  color: #15803D;
+}
+.pill-inactive {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+/* Modal / confirm dialog */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+  animation: vela-modal-fade 120ms ease;
+}
+@keyframes vela-modal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.modal-sheet {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  animation: vela-modal-pop 160ms ease;
+}
+@keyframes vela-modal-pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+.modal-title {
+  margin: 0 0 8px;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.modal-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary, var(--color-text-muted));
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Toast stack */
+.toast-stack {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--color-text);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+  max-width: 360px;
+  animation: vela-toast-in 180ms ease;
+}
+@keyframes vela-toast-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.toast-success {
+  background: #15803D;
+}
+.toast-error {
+  background: #B91C1C;
+}
+
+/* Empty state inside data tables */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+  gap: 8px;
+}
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.empty-state-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.empty-state-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  max-width: 360px;
+  line-height: 1.5;
+}
+.empty-state-action {
+  margin-top: 12px;
+}
+
+/* User detail page */
+.user-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px 24px;
+}
+.user-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.user-detail-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.user-detail-value {
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  word-break: break-all;
+}
+.user-detail-value code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-brand-700);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+}
+.btn-link:hover {
+  color: var(--color-brand-800);
+  text-decoration: underline;
+}
+
+/* Section label used on the Overview page */
+.section-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.kpi.brand-link {
+  border-color: var(--color-brand-700);
+}
+
+/* KPI grid: ensure cards never force overflow */
+.kpi {
+  min-width: 0;
+}
+.kpi .kpi-label,
+.kpi .kpi-value,
+.kpi .kpi-delta {
+  min-width: 0;
+  word-wrap: break-word;
+}
+a.kpi {
+  text-decoration: none;
+  color: inherit;
+  transition: transform 120ms ease, box-shadow 160ms ease, border-color 120ms ease;
+}
+a.kpi:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
+  border-color: var(--color-border-strong, var(--color-border));
+}
+.card-pad {
+  padding: 24px;
+}
+.kpi.brand-link .kpi-value {
+  color: var(--color-brand-700);
+}
