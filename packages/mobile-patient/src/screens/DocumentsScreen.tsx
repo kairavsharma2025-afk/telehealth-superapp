@@ -20,6 +20,7 @@ import { api, ApiError } from "../lib/api";
 import { fontWeight, palette, radius, semantic, space } from "../theme";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { confirmAction } from "../lib/confirm";
+import { FileTextIcon } from "../components/Icons";
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -136,10 +137,21 @@ function formatWhen(iso: string): string {
   });
 }
 
-function categoryIcon(category: Category | null): string {
-  if (!category) return "📄";
-  const opt = CATEGORY_OPTIONS.find((o) => o.value === category);
-  return opt?.icon ?? "📄";
+// Soft pastel + deeper-shade-icon palette per document category. Used
+// for the 40×40 file-type tile shown next to each document row.
+const CATEGORY_TILE: Record<
+  Category,
+  { bg: string; fg: string }
+> = {
+  lab_report:   { bg: "#DCFCE7", fg: "#16A34A" },
+  prescription: { bg: "#DBEAFE", fg: "#2563EB" },
+  imaging:      { bg: "#EDE9FE", fg: "#7C3AED" },
+  insurance:    { bg: "#FEF3C7", fg: "#CA8A04" },
+  other:        { bg: "#F1F5F9", fg: "#64748B" },
+};
+
+function categoryTile(category: Category | null) {
+  return CATEGORY_TILE[category ?? "other"];
 }
 
 // Stored filenames are sometimes raw timestamps from older flows
@@ -391,8 +403,16 @@ export function DocumentsScreen() {
               item.contentType.startsWith("image/") && item.status === "uploaded";
             return (
               <View style={styles.row}>
-                <View style={styles.iconBubble}>
-                  <Text style={styles.iconBubbleText}>{categoryIcon(item.category)}</Text>
+                <View
+                  style={[
+                    styles.iconBubble,
+                    { backgroundColor: categoryTile(item.category).bg },
+                  ]}
+                >
+                  <FileTextIcon
+                    size={22}
+                    color={categoryTile(item.category).fg}
+                  />
                 </View>
                 <View style={styles.rowMain}>
                   <Text style={styles.filename} numberOfLines={1}>
@@ -598,14 +618,14 @@ const styles = StyleSheet.create({
     borderColor: semantic.border,
   },
   iconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 10, // rounded square per spec
     backgroundColor: palette.brand50,
     alignItems: "center",
     justifyContent: "center",
   },
-  iconBubbleText: { fontSize: 22 },
+  iconBubbleText: { fontSize: 20 },
   rowMain: { flex: 1, gap: 4 },
   filename: {
     color: semantic.text,

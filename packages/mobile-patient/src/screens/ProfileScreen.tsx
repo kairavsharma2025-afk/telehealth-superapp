@@ -182,8 +182,22 @@ export function ProfileScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.identityCard}>
-          <View>
-            <View style={styles.avatar}>
+          {/* Gradient banner behind the avatar */}
+          <View
+            style={[
+              styles.identityBanner,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { backgroundImage: "linear-gradient(135deg, #E6F7F5 0%, #F0FAF9 100%)" } as any,
+            ]}
+          />
+          <View style={styles.identityBody2}>
+            <View
+              style={[
+                styles.avatar,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                { outline: `3px solid ${palette.brand700}`, outlineOffset: 3 } as any,
+              ]}
+            >
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
             <TouchableOpacity
@@ -200,7 +214,7 @@ export function ProfileScreen() {
               <Text style={styles.uploadPhotoText}>Upload photo</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.identityBody}>
+          <View style={styles.identityBodyText}>
             <Text style={styles.identityName}>{displayName}</Text>
             <Text style={styles.identityEmail}>{user?.email ?? "—"}</Text>
             <View style={styles.roleChip}>
@@ -423,30 +437,52 @@ const styles = StyleSheet.create({
   content: { padding: space[4], paddingBottom: space[10] },
 
   identityCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[3],
     backgroundColor: semantic.surface,
     borderRadius: radius.xl,
-    padding: space[4],
     borderWidth: 1,
     borderColor: semantic.border,
+    overflow: "hidden",
+    // brand-tinted shadow
+    shadowColor: "#0D9E89",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  identityBanner: {
+    height: 90,
+    backgroundColor: palette.brand50,
+  },
+  identityBody2: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingBottom: space[4],
+    marginTop: -36,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: palette.brand700,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 4,
+    borderColor: "#fff",
   },
   avatarText: {
     color: palette.white,
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: fontWeight.bold,
     letterSpacing: 1,
   },
-  identityBody: { flex: 1, gap: 4 },
+  identityBody: { flex: 1, gap: 4, paddingBottom: 4 },
+  identityBodyText: {
+    paddingHorizontal: space[4],
+    paddingBottom: space[4],
+    gap: 4,
+  },
   identityName: {
     color: semantic.text,
     fontSize: 17,

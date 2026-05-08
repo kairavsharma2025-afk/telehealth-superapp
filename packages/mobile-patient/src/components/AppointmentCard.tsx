@@ -124,7 +124,15 @@ export function AppointmentCard({
       activeOpacity={0.85}
     >
       <View style={styles.headerRow}>
-        <View style={styles.timeChip} aria-hidden>
+        <View
+          // Brand gradient on web, solid brand50 on native fallback.
+          style={[
+            styles.timeChip,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            { backgroundImage: "linear-gradient(135deg, #E6F7F5, #C8F0EB)" } as any,
+          ]}
+          aria-hidden
+        >
           <Text style={styles.timeChipDay}>{dayFmt.format(start).toUpperCase()}</Text>
           <Text style={styles.timeChipTime}>{timeFmt.format(start)}</Text>
           <Text style={styles.timeChipDate}>{monthDayFmt.format(start)}</Text>
@@ -241,26 +249,28 @@ const styles = StyleSheet.create({
     backgroundColor: palette.brand50,
     borderRadius: radius.md,
     paddingHorizontal: space[3],
-    paddingVertical: space[2],
-    minWidth: 76,
+    paddingVertical: space[3],
+    minWidth: 88,
     alignItems: "center",
     justifyContent: "center",
   },
   timeChipDay: {
     fontSize: 10,
     fontWeight: fontWeight.bold,
-    color: palette.brand800,
+    color: palette.brand700,
     letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   timeChipTime: {
-    fontSize: 16,
-    fontWeight: fontWeight.semibold,
-    color: palette.brand800,
-    marginTop: 2,
+    fontSize: 20,
+    fontWeight: fontWeight.bold,
+    color: semantic.text,
+    marginTop: 4,
+    letterSpacing: -0.3,
   },
   timeChipDate: {
-    fontSize: 11,
-    color: palette.brand700,
+    fontSize: 12,
+    color: semantic.textMuted,
     marginTop: 2,
   },
   body: {
@@ -269,16 +279,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headline: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: fontWeight.semibold,
     color: semantic.text,
   },
   specialty: {
     fontSize: 12,
-    fontWeight: fontWeight.semibold,
-    color: palette.brand700,
+    fontWeight: fontWeight.medium,
+    color: semantic.textMuted,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   metaRow: {
     flexDirection: "row",

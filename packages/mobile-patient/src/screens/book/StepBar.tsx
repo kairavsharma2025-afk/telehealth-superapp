@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { fontWeight, palette, semantic, space } from "../../theme";
 import { CheckIcon } from "../../components/Icons";
 import type { Step } from "./shared";
+type AnyStyle = { [key: string]: unknown };
 
 interface StepBarProps {
   current: Step;
@@ -22,10 +23,16 @@ export function StepBar({ current }: StepBarProps) {
       {STEPS.map((s, i) => {
         const completed = current > s.n;
         const active = current === s.n;
+        // Active circle: pulsing teal ring via the velaPulse keyframes
+        // we registered in WebShell. Web-only — RN ignores className.
+        const activeWebProps: AnyStyle = active
+          ? { className: "vela-pulse" }
+          : {};
         return (
           <View key={s.n} style={styles.cell}>
             <View style={styles.cellInner}>
               <View
+                {...(activeWebProps as { className?: string })}
                 style={[
                   styles.circle,
                   active && styles.circleActive,
@@ -56,7 +63,15 @@ export function StepBar({ current }: StepBarProps) {
               </Text>
             </View>
             {i < STEPS.length - 1 ? (
-              <View style={[styles.connector, completed && styles.connectorDone]} />
+              <View
+                style={[
+                  styles.connector,
+                  completed && styles.connectorDone,
+                  // dashed look for upcoming connectors (web-only)
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  !completed && ({ borderStyle: "dashed", borderTopWidth: 2, height: 0, backgroundColor: "transparent", borderColor: semantic.border } as any),
+                ]}
+              />
             ) : null}
           </View>
         );
@@ -89,17 +104,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   circle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: semantic.surfaceMuted,
-    borderWidth: 1,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: semantic.border,
+    borderWidth: 2,
     borderColor: semantic.border,
     alignItems: "center",
     justifyContent: "center",
   },
   circleActive: {
-    backgroundColor: palette.brand700,
+    backgroundColor: "#fff",
     borderColor: palette.brand700,
   },
   circleDone: {
@@ -108,11 +123,11 @@ const styles = StyleSheet.create({
   },
   circleNum: {
     color: semantic.textMuted,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: fontWeight.bold,
   },
   circleNumActive: {
-    color: "#fff",
+    color: palette.brand700,
   },
   label: {
     color: semantic.textMuted,
