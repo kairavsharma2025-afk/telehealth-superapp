@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
@@ -154,6 +154,7 @@ export function DashboardPage() {
               )}
             </h2>
             <span className="countdown">
+              <KpiClockIcon />
               {nextUp.reason ? `${nextUp.reason} · ` : ""}
               {formatRelative(new Date(nextUp.startAt))} ·{" "}
               {new Date(nextUp.startAt).toLocaleTimeString(undefined, {
@@ -162,16 +163,10 @@ export function DashboardPage() {
               })}
             </span>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Link
-              to={`/appointments/${nextUp.id}`}
-              className="btn"
-              style={{ background: "rgba(255,255,255,0.16)", borderColor: "transparent" }}
-            >
-              View details
-            </Link>
+          <div className="next-up-actions">
             {nextUp.status === "scheduled" ? (
               <button
+                className="next-up-cta-primary"
                 onClick={() =>
                   transition.mutate({ id: nextUp.id, to: "confirmed" })
                 }
@@ -180,11 +175,20 @@ export function DashboardPage() {
                 Accept
               </button>
             ) : nextUp.status === "confirmed" ? (
-              <button onClick={() => navigate(`/consultation/${nextUp.id}`)}>
+              <button
+                className="next-up-cta-primary"
+                onClick={() => navigate(`/consultation/${nextUp.id}`)}
+              >
                 <PlayIcon size={12} />
                 Start consultation
               </button>
             ) : null}
+            <Link
+              to={`/appointments/${nextUp.id}`}
+              className="next-up-cta-ghost"
+            >
+              View details
+            </Link>
           </div>
         </div>
       ) : null}
@@ -196,22 +200,30 @@ export function DashboardPage() {
           value={kpis.today}
           delta="Appointments today"
           brand
+          accent="teal"
+          icon={<KpiCalendarIcon />}
         />
         <Kpi
           to="/appointments?filter=awaiting"
           label="Awaiting confirmation"
           value={kpis.pending}
           delta="Needs your review"
+          accent="amber"
+          icon={<KpiClockIcon />}
         />
         <Kpi
           to="/appointments?tab=completed"
           label="Completed (all-time)"
           value={kpis.completed}
+          accent="green"
+          icon={<KpiCheckIcon />}
         />
         <Kpi
           to="/appointments?tab=cancelled"
           label="Cancellation rate"
           value={kpis.cancelRate === null ? "—" : `${kpis.cancelRate}%`}
+          accent="red"
+          icon={<KpiXCircleIcon />}
           {...(kpis.cancelRate === null
             ? { hint: "Not enough data yet" }
             : {})}
@@ -312,6 +324,8 @@ function emptyDescription(tab: Tab): string {
   }
 }
 
+type KpiAccent = "teal" | "amber" | "green" | "red";
+
 function Kpi({
   to,
   label,
@@ -319,6 +333,8 @@ function Kpi({
   delta,
   hint,
   brand: isBrand = false,
+  accent,
+  icon,
 }: {
   to: string;
   label: string;
@@ -326,14 +342,57 @@ function Kpi({
   delta?: string;
   hint?: string;
   brand?: boolean;
+  accent?: KpiAccent;
+  icon?: ReactNode;
 }) {
+  const cls = ["kpi"];
+  if (isBrand) cls.push("brand");
+  if (accent) cls.push(`kpi-accent-${accent}`);
   return (
-    <Link to={to} className={`kpi${isBrand ? " brand" : ""}`} title={hint}>
+    <Link to={to} className={cls.join(" ")} title={hint}>
+      {icon ? <span className={`kpi-icon kpi-icon-${accent ?? "teal"}`}>{icon}</span> : null}
       <span className="kpi-label">{label}</span>
       <span className="kpi-value">{value}</span>
       {delta ? <span className="kpi-delta">{delta}</span> : null}
       {hint && !delta ? <span className="kpi-delta">{hint}</span> : null}
     </Link>
+  );
+}
+
+function KpiCalendarIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+function KpiClockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+function KpiCheckIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l3 3 5-6" />
+    </svg>
+  );
+}
+function KpiXCircleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9 9l6 6M15 9l-6 6" />
+    </svg>
   );
 }
 

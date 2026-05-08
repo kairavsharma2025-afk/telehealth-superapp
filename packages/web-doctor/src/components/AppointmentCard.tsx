@@ -73,7 +73,7 @@ export function AppointmentCard({
           ) : null}
           {canCancel ? (
             <button
-              className="secondary"
+              className="danger-ghost"
               onClick={() => onTransition("cancelled")}
               disabled={busy}
             >

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { brand } from "@telehealth/design";
 import { useAuth } from "../lib/auth";
@@ -139,7 +139,28 @@ export function Layout({ title, meta, children }: LayoutProps) {
             {greeting}, Dr. {lastName}.
           </div>
         </div>
-        <div className="app-topbar-meta">{meta}</div>
+        <div className="app-topbar-right">
+          <div className="app-topbar-meta">{meta}</div>
+          <Link
+            to="/notifications"
+            className="topbar-bell"
+            aria-label={
+              unreadCount > 0
+                ? `Notifications (${unreadCount} unread)`
+                : "Notifications"
+            }
+          >
+            <BellIcon />
+            {unreadCount > 0 ? <span className="topbar-bell-dot" /> : null}
+          </Link>
+          <div
+            className="topbar-avatar"
+            aria-label={`Dr. ${lastName}`}
+            title={`Dr. ${lastName}`}
+          >
+            {avatarInitials(me.data?.fullName, "Dr")}
+          </div>
+        </div>
       </header>
 
       <main className="app-main">{children}</main>
@@ -197,4 +218,37 @@ function Icon({ path }: { path: string }) {
       <path d={path} />
     </svg>
   );
+}
+
+function BellIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+// Avatar initials: prefer the first letter of the doctor's first +
+// last name, fall back to the literal "Dr" so the chip never reads
+// "??" while the profile is still loading.
+function avatarInitials(fullName: string | null | undefined, fallback: string): string {
+  if (!fullName) return fallback;
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 0) return fallback;
+  const first = parts[0]?.charAt(0).toUpperCase() ?? "";
+  const last = parts.length > 1
+    ? (parts[parts.length - 1]?.charAt(0).toUpperCase() ?? "")
+    : "";
+  return `D${(first || last) ?? fallback.charAt(1)}`;
 }
