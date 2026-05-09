@@ -45,8 +45,6 @@ const VISIBLE_FILTERS: readonly Filter[] = [
 ];
 
 function readFilterFromQuery(params: URLSearchParams): Filter {
-  // Dashboard KPI tiles deep-link via either ?filter= or ?tab= (the
-  // older naming). Both map onto the same internal filter set.
   const v = params.get("filter") ?? params.get("tab");
   switch (v) {
     case "today":
@@ -97,9 +95,6 @@ export function AppointmentsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // Re-sync filter if the URL changes (e.g. user clicks a Dashboard
-  // KPI tile while on the page). The setState is no-op when the filter
-  // already matches.
   useEffect(() => {
     setFilter(readFilterFromQuery(searchParams));
     setPage(1);
@@ -108,9 +103,6 @@ export function AppointmentsPage() {
   const updateFilter = (next: Filter) => {
     setFilter(next);
     setPage(1);
-    // Mirror selection back into the URL so the chosen tab is
-    // shareable / refresh-stable. Drop the param entirely for the
-    // default ("today") to keep the URL clean.
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("tab");
     if (next === "today") {
@@ -126,8 +118,6 @@ export function AppointmentsPage() {
     [query.data, user?.id],
   );
 
-  // Resolve every visible patient's name once, drives the row "who"
-  // line + makes the search box match against names too.
   const patientLookup = useLookup(mine.map((a) => a.patientId));
 
   const filtered = useMemo(() => {
@@ -180,12 +170,21 @@ export function AppointmentsPage() {
   const start = (safePage - 1) * PAGE_SIZE;
   const visible = filtered.slice(start, start + PAGE_SIZE);
 
+  const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+  const monthDayFmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+  const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
   return (
     <Layout title="Appointments" meta={<span>{filtered.length} matching</span>}>
-      <div className="card">
-        <div className="toolbar">
-          <div className="search">
-            <span className="icon" aria-hidden="true">🔍</span>
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+        <div className="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative flex-1 lg:max-w-md">
+            <span
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+              aria-hidden="true"
+            >
+              <SearchIcon />
+            </span>
             <input
               type="search"
               placeholder="Search by patient name, reason, or notes…"
@@ -194,26 +193,35 @@ export function AppointmentsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              className="w-full rounded-md border border-border bg-white py-2 pl-9 pr-3 text-[13px] text-ink placeholder:text-ink-subtle outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
-          <div className="filter-pills" role="tablist">
+          <div
+            className="inline-flex flex-shrink-0 rounded-md border border-border bg-[#F6F8FA] p-0.5"
+            role="tablist"
+          >
             {VISIBLE_FILTERS.map((f) => (
               <button
                 key={f}
-                className={f === filter ? "active" : ""}
                 onClick={() => updateFilter(f)}
                 role="tab"
                 aria-selected={f === filter}
+                className={
+                  "rounded px-2.5 py-1 text-[12.5px] font-medium transition " +
+                  (f === filter
+                    ? "bg-white text-ink shadow-sm"
+                    : "text-ink-muted hover:text-ink")
+                }
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
-            {/* "Awaiting" isn't in the regular pill row to keep the
-                row compact, but the URL accepts ?filter=awaiting from
-                the Dashboard KPI tile and we surface it here when
-                active. */}
             {filter === "awaiting" ? (
-              <button className="active" role="tab" aria-selected>
+              <button
+                role="tab"
+                aria-selected
+                className="rounded bg-white px-2.5 py-1 text-[12.5px] font-medium text-ink shadow-sm"
+              >
                 Awaiting
               </button>
             ) : null}
@@ -221,20 +229,19 @@ export function AppointmentsPage() {
         </div>
 
         {query.isPending ? (
-          <ul className="appt-list">
+          <ul>
             <AppointmentRowSkeleton />
             <AppointmentRowSkeleton />
             <AppointmentRowSkeleton />
             <AppointmentRowSkeleton />
           </ul>
         ) : query.isError ? (
-          <div className="card-pad">
-            <div className="alert alert-error">
+          <div className="px-5 py-4">
+            <div className="rounded-md border border-danger/20 bg-danger-subtle px-3 py-2 text-[13px] text-danger">
               Couldn&apos;t load appointments — {query.error.message}.{" "}
               <button
-                className="link"
+                className="ml-1 font-medium underline"
                 onClick={() => void query.refetch()}
-                style={{ marginLeft: 8 }}
               >
                 Retry
               </button>
@@ -253,44 +260,42 @@ export function AppointmentsPage() {
             }
           />
         ) : (
-          <ul className="appt-list">
+          <ul>
             {visible.map((a) => (
               <li key={a.id}>
-                <Link to={`/appointments/${a.id}`} className="appt-row">
-                  <div className="appt-time" aria-hidden="true">
-                    <span className="day">
-                      {new Date(a.startAt)
-                        .toLocaleDateString(undefined, { weekday: "short" })
-                        .toUpperCase()}
+                <Link
+                  to={`/appointments/${a.id}`}
+                  className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0 transition hover:bg-[#FBFCFD]"
+                >
+                  <div
+                    className="flex h-[58px] w-[72px] flex-shrink-0 flex-col items-center justify-center rounded-lg border border-border bg-[#FBFCFD] leading-tight"
+                    aria-hidden="true"
+                  >
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-subtle">
+                      {dayFmt.format(new Date(a.startAt))}
                     </span>
-                    <span className="time">
-                      {new Date(a.startAt).toLocaleTimeString(undefined, {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
+                    <span className="mt-0.5 text-[14px] font-semibold text-ink tabular-nums">
+                      {timeFmt.format(new Date(a.startAt))}
                     </span>
-                    <span className="date">
-                      {new Date(a.startAt).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
+                    <span className="text-[10.5px] text-ink-muted">
+                      {monthDayFmt.format(new Date(a.startAt))}
                     </span>
                   </div>
-                  <div className="appt-main">
-                    <div className="who">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13.5px] font-medium text-ink">
                       {displayName(a.patientId, patientLookup.get(a.patientId), "patient")}
                     </div>
-                    <div className="reason">
-                      {a.reason ?? "No reason provided"}{" "}
-                      <span className="muted">· {dateFmt.format(new Date(a.startAt))}</span>
+                    <div className="mt-0.5 truncate text-[12.5px] text-ink-muted">
+                      {a.reason ?? "No reason provided"}
+                      <span className="ml-1 text-ink-subtle">
+                        · {dateFmt.format(new Date(a.startAt))}
+                      </span>
                     </div>
                   </div>
-                  <div className="appt-side">
+                  <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
                     <StatusPill status={a.status} />
                     {a.notes ? (
-                      <span className="muted" style={{ fontSize: 11 }}>
-                        Notes attached
-                      </span>
+                      <span className="text-[10.5px] text-ink-subtle">Notes attached</span>
                     ) : null}
                   </div>
                 </Link>
@@ -300,24 +305,26 @@ export function AppointmentsPage() {
         )}
 
         {totalPages > 1 ? (
-          <div className="pagination">
-            <span className="page-info">
+          <div className="flex flex-col gap-3 border-t border-border bg-[#FBFCFD] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[12px] text-ink-muted">
               Showing {start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} of{" "}
               {filtered.length}
             </span>
-            <div className="page-buttons">
+            <div className="flex items-center gap-2">
               <button
                 disabled={safePage <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-md border border-border bg-white px-2.5 py-1 text-[12.5px] font-medium text-ink transition hover:bg-[#F6F8FA] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 ‹ Prev
               </button>
-              <span style={{ alignSelf: "center", fontSize: 13 }}>
+              <span className="text-[12px] text-ink-muted tabular-nums">
                 Page {safePage} of {totalPages}
               </span>
               <button
                 disabled={safePage >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-md border border-border bg-white px-2.5 py-1 text-[12.5px] font-medium text-ink transition hover:bg-[#F6F8FA] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next ›
               </button>
@@ -329,9 +336,19 @@ export function AppointmentsPage() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+      strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="7" cy="7" r="5" />
+      <path d="m13 13-2.5-2.5" />
+    </svg>
+  );
+}
+
 function EmptyIcon() {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="5" width="18" height="16" rx="2" />
       <path d="M16 3v4M8 3v4M3 11h18" />
