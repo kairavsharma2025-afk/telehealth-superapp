@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { brand } from "@telehealth/design";
@@ -58,13 +58,11 @@ export function ConsultationPage() {
   });
   const patientLookup = useLookup(query.data ? [query.data.patientId] : []);
 
-  // Local edit buffer for the notes textarea + autosave plumbing.
   const [notes, setNotes] = useState<string>("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const lastSavedRef = useRef<string>("");
   const debounceRef = useRef<number | null>(null);
 
-  // Seed the buffer once when the appointment loads.
   useEffect(() => {
     if (query.data) {
       setNotes(query.data.notes ?? "");
@@ -73,17 +71,12 @@ export function ConsultationPage() {
     }
   }, [query.data]);
 
-  // Stopwatch — runs while the consultation is open. Saved as elapsed
-  // seconds in component state; not persisted (Phase 7 video session
-  // would emit duration metrics from the SFU directly).
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => window.clearInterval(t);
   }, []);
 
-  // Autosave: when notes diverge from the last persisted value, queue a
-  // PATCH after a debounce window.
   const saveMut = useMutation<Appointment, ApiError, string>({
     mutationFn: (next) =>
       api<Appointment>(`/appointments/${id ?? ""}`, {
@@ -131,9 +124,6 @@ export function ConsultationPage() {
         method: "PATCH",
         body: {
           status: "completed",
-          // Flush any unsaved notes alongside the status change so we
-          // don't leave the visit completed-but-empty if the user hits
-          // End right after typing.
           ...(notes !== lastSavedRef.current ? { notes } : {}),
         },
       }),
@@ -151,7 +141,6 @@ export function ConsultationPage() {
     },
   });
 
-  // Esc out of consult mode (back to detail page).
   useEscapeKey(() => {
     if (id) navigate(`/appointments/${id}`);
   });
@@ -160,12 +149,16 @@ export function ConsultationPage() {
 
   if (query.isPending || !query.data) {
     return (
-      <div className="consult-shell">
-        <header className="consult-topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Logo size={24} color="var(--color-brand-700)" />
-            <strong>{brand.name}</strong>
-            <span className="muted">· Loading consultation…</span>
+      <div className="min-h-screen bg-[#F6F8FA]">
+        <header className="border-b border-border bg-white">
+          <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-6 py-4">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-700 text-white">
+              <Logo size={18} color="#fff" />
+            </span>
+            <strong className="text-[15px] font-semibold tracking-tight text-ink">
+              {brand.name}
+            </strong>
+            <span className="text-[12.5px] text-ink-muted">· Loading consultation…</span>
           </div>
         </header>
       </div>
@@ -177,115 +170,104 @@ export function ConsultationPage() {
   const end = new Date(a.endAt);
   const isTerminal = a.status === "completed" || a.status === "cancelled";
 
+  const info = patientLookup.get(a.patientId);
+  const initials = info?.fullName
+    ? info.fullName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w.charAt(0).toUpperCase())
+        .join("")
+    : "??";
+  const name = displayName(a.patientId, info, "patient");
+
   return (
-    <div className="consult-shell">
-      <header className="consult-topbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Logo size={24} color="var(--color-brand-700)" />
-          <strong>{brand.name}</strong>
-          <span className="muted">· Consultation in progress</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div className="consult-timer" aria-live="polite">
-            <span className="pulse" aria-hidden="true" />
-            {formatElapsed(elapsed)}
+    <div className="min-h-screen bg-[#F6F8FA]">
+      <header className="sticky top-0 z-20 border-b border-border bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-700 text-white">
+              <Logo size={18} color="#fff" />
+            </span>
+            <strong className="text-[15px] font-semibold tracking-tight text-ink">
+              {brand.name}
+            </strong>
+            <span className="text-[12.5px] text-ink-muted">· Consultation in progress</span>
           </div>
-          <a
-            href={`https://meet.jit.si/telehealth-${a.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn"
-            style={{ textDecoration: "none" }}
-          >
-            Join video
-          </a>
-          <button
-            onClick={() => completeMut.mutate()}
-            disabled={completeMut.isPending || isTerminal}
-          >
-            {completeMut.isPending ? "Completing…" : "End consultation"}
-          </button>
-          <Link
-            to={`/appointments/${a.id}`}
-            className="btn-ghost"
-            style={{ padding: "6px 12px" }}
-          >
-            ← Back
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-white px-2.5 py-1.5 text-[13px] font-semibold text-ink tabular-nums"
+              aria-live="polite"
+            >
+              <span className="relative inline-flex">
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-rose-400 opacity-60" />
+              </span>
+              {formatElapsed(elapsed)}
+            </div>
+            <a
+              href={`https://meet.jit.si/telehealth-${a.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-border bg-white px-3 py-1.5 text-[13px] font-medium text-ink transition hover:bg-[#F6F8FA]"
+            >
+              Join video
+            </a>
+            <button
+              onClick={() => completeMut.mutate()}
+              disabled={completeMut.isPending || isTerminal}
+              className="rounded-md bg-brand-700 px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
+            >
+              {completeMut.isPending ? "Completing…" : "End consultation"}
+            </button>
+            <Link
+              to={`/appointments/${a.id}`}
+              className="rounded-md px-2.5 py-1.5 text-[13px] font-medium text-ink-muted transition hover:bg-[#F6F8FA] hover:text-ink"
+            >
+              ← Back
+            </Link>
+          </div>
         </div>
       </header>
 
-      <div className="consult-body">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 p-6 lg:grid-cols-[300px_1fr]">
         <aside>
-          <div className="detail-section">
-            <h3>Patient</h3>
-            <div className="body">
-              {(() => {
-                const info = patientLookup.get(a.patientId);
-                const initials = info?.fullName
-                  ? info.fullName
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((w) => w.charAt(0).toUpperCase())
-                      .join("")
-                  : "??";
-                const name = displayName(a.patientId, info, "patient");
-                return (
-                  <>
-                    <div
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 28,
-                        background: "var(--color-brand-subtle)",
-                        color: "var(--color-brand-800)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontWeight: 600,
-                        fontSize: 18,
-                        marginBottom: 12,
-                      }}
-                    >
-                      {initials}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 17,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {name}
-                    </div>
-                    <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-                      #{a.patientId.slice(0, 8)}
-                    </div>
-                  </>
-                );
-              })()}
-              <dl className="prop-list">
-                <dt>Status</dt>
-                <dd>
+          <Card>
+            <CardHeader>Patient</CardHeader>
+            <div className="p-5">
+              <div className="grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-[16px] font-semibold text-brand-800">
+                {initials}
+              </div>
+              <div className="mt-3 text-[16px] font-semibold tracking-tight text-ink">
+                {name}
+              </div>
+              <code className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[11.5px] text-ink-muted">
+                #{a.patientId.slice(0, 8)}
+              </code>
+              <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 text-[13px]">
+                <Dt>Status</Dt>
+                <Dd>
                   <StatusPill status={a.status} />
-                </dd>
-                <dt>Slot</dt>
-                <dd>
-                  {fullDate.format(start)}
-                  <br />
-                  {timeFmt.format(start)}–{timeFmt.format(end)}
-                </dd>
-                <dt>Reason</dt>
-                <dd>{a.reason ?? <span className="muted">— not given</span>}</dd>
+                </Dd>
+                <Dt>Slot</Dt>
+                <Dd>
+                  <div>{fullDate.format(start)}</div>
+                  <div className="tabular-nums text-ink-muted">
+                    {timeFmt.format(start)}–{timeFmt.format(end)}
+                  </div>
+                </Dd>
+                <Dt>Reason</Dt>
+                <Dd>
+                  {a.reason ?? <span className="text-ink-subtle">— not given</span>}
+                </Dd>
               </dl>
             </div>
-          </div>
+          </Card>
         </aside>
 
         <section>
-          <div className="detail-section">
-            <h3>Clinical notes</h3>
-            <div className="body consult-notes-editor">
+          <Card>
+            <CardHeader>Clinical notes</CardHeader>
+            <div className="p-5">
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -294,14 +276,43 @@ export function ConsultationPage() {
                 }
                 disabled={isTerminal}
                 aria-label="Clinical notes"
+                className="block min-h-[400px] w-full resize-y rounded-md border border-border bg-white p-3 font-mono text-[13px] leading-relaxed text-ink placeholder:text-ink-subtle outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-500/15 disabled:bg-slate-50"
               />
-              <SaveIndicator state={saveState} />
+              <div className="mt-3">
+                <SaveIndicator state={saveState} />
+              </div>
             </div>
-          </div>
+          </Card>
         </section>
       </div>
     </div>
   );
+}
+
+function Card({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+      {children}
+    </div>
+  );
+}
+function CardHeader({ children }: { children: ReactNode }) {
+  return (
+    <div className="border-b border-border px-5 py-3.5 text-[13px] font-semibold tracking-tight text-ink">
+      {children}
+    </div>
+  );
+}
+
+function Dt({ children }: { children: ReactNode }) {
+  return (
+    <dt className="text-[11.5px] font-medium uppercase tracking-wider text-ink-subtle">
+      {children}
+    </dt>
+  );
+}
+function Dd({ children }: { children: ReactNode }) {
+  return <dd className="text-ink">{children}</dd>;
 }
 
 function SaveIndicator({ state }: { state: SaveState }) {
@@ -313,9 +324,17 @@ function SaveIndicator({ state }: { state: SaveState }) {
         : state === "dirty"
           ? "Unsaved changes — autosaving"
           : "Couldn't save — your typing is held locally";
+  const tone =
+    state === "saved"
+      ? "text-emerald-600"
+      : state === "saving"
+        ? "text-blue-600"
+        : state === "dirty"
+          ? "text-amber-600"
+          : "text-danger";
   return (
-    <span className={`consult-save-state ${state}`}>
-      <span className="dot" /> {label}
+    <span className={"inline-flex items-center gap-2 text-[12px] font-medium " + tone}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" /> {label}
     </span>
   );
 }

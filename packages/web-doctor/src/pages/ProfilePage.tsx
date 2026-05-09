@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { brand } from "@telehealth/design";
 import { api, ApiError } from "../lib/api";
@@ -71,9 +71,6 @@ export function ProfilePage() {
     );
   }, [query.data, fullName, phone, dateOfBirth]);
 
-  // "Just saved" flag drives the brief "Saved ✓" affordance on the
-  // submit button. Cleared after 2s so the button reverts to its
-  // default label.
   const [justSaved, setJustSaved] = useState(false);
   useEffect(() => {
     if (!justSaved) return;
@@ -116,98 +113,154 @@ export function ProfilePage() {
 
   return (
     <Layout title="Profile">
-      <div className="identity-card">
-        <div className="avatar">{initials}</div>
-        <div>
-          <div className="who">Dr. {displayName}</div>
-          <div className="email">{user?.email ?? "—"}</div>
-          <span className="role-pill">{user?.role ?? "doctor"}</span>
+      <div className="mb-6 flex items-center gap-4 rounded-xl border border-border bg-white p-5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+        <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-full bg-brand-100 text-[16px] font-semibold text-brand-800">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[18px] font-semibold tracking-tight text-ink">
+            Dr. {displayName}
+          </div>
+          <div className="mt-0.5 truncate text-[12.5px] text-ink-muted">
+            {user?.email ?? "—"}
+          </div>
+          <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold capitalize text-emerald-700 ring-1 ring-emerald-200">
+            {user?.role ?? "doctor"}
+          </span>
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-header">
-          <h2>Your details</h2>
-          <span className="muted">Visible to patients you see.</span>
-        </div>
-        <div className="card-pad">
-          <div className="field">
-            <label htmlFor="fullName">Full name</label>
+      <Card>
+        <CardHeader title="Your details" hint="Visible to patients you see." />
+        <div className="space-y-4 p-5">
+          <Field id="fullName" label="Full name">
             <input
               id="fullName"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Aarav Sharma"
+              className="block w-full rounded-md border border-border bg-white px-3 py-2 text-[14px] text-ink placeholder:text-ink-subtle outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-500/15"
             />
-          </div>
-          <div className="field">
-            <label htmlFor="phone">Phone</label>
+          </Field>
+          <Field id="phone" label="Phone">
             <input
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="e.g. +91 98765 43210"
+              className="block w-full rounded-md border border-border bg-white px-3 py-2 text-[14px] text-ink placeholder:text-ink-subtle outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-500/15"
             />
-          </div>
-          <div className="field">
-            <label htmlFor="dob">Date of birth</label>
+          </Field>
+          <Field id="dob" label="Date of birth">
             <input
               id="dob"
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
+              className="block w-full rounded-md border border-border bg-white px-3 py-2 text-[14px] text-ink outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-500/15"
             />
-          </div>
+          </Field>
           <button
             onClick={() => save.mutate()}
             disabled={(!dirty && !justSaved) || save.isPending}
+            className="rounded-md bg-brand-700 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saveLabel}
           </button>
         </div>
-      </div>
+      </Card>
 
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-header">
-          <h2>About</h2>
-        </div>
-        <div className="card-pad">
-          <dl className="prop-list">
-            <dt>Product</dt>
-            <dd>{brand.name}</dd>
-            <dt>Tagline</dt>
-            <dd>{brand.tagline}</dd>
-            <dt>Version</dt>
-            <dd>0.1.0</dd>
-            <dt>Support</dt>
-            <dd>
-              <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>
-            </dd>
+      <div className="mt-6">
+        <Card>
+          <CardHeader title="About" />
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 p-5 text-[13px] sm:grid-cols-[120px_1fr]">
+            <Dt>Product</Dt>
+            <Dd>{brand.name}</Dd>
+            <Dt>Tagline</Dt>
+            <Dd>{brand.tagline}</Dd>
+            <Dt>Version</Dt>
+            <Dd>0.1.0</Dd>
+            <Dt>Support</Dt>
+            <Dd>
+              <a
+                href={`mailto:${brand.supportEmail}`}
+                className="font-medium text-brand-700 hover:text-brand-800 hover:underline"
+              >
+                {brand.supportEmail}
+              </a>
+            </Dd>
           </dl>
-        </div>
+        </Card>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <h2>Session</h2>
-        </div>
-        <div className="card-pad row-spread">
-          <div>
-            <div style={{ fontWeight: 600 }}>Sign out of the doctor console</div>
-            <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-              You&apos;ll need to sign in again to access patients and
-              appointments.
+      <div className="mt-6">
+        <Card>
+          <CardHeader title="Session" />
+          <div className="flex items-center justify-between gap-4 p-5">
+            <div>
+              <div className="text-[13.5px] font-semibold text-ink">
+                Sign out of the doctor console
+              </div>
+              <div className="mt-1 text-[12.5px] text-ink-muted">
+                You&apos;ll need to sign in again to access patients and appointments.
+              </div>
             </div>
+            <a
+              href="/signout.html"
+              className="rounded-md border border-rose-200 bg-white px-3.5 py-2 text-[13px] font-medium text-rose-700 transition hover:bg-rose-50"
+            >
+              Sign out
+            </a>
           </div>
-          <a
-            href="/signout.html"
-            className="btn btn-danger"
-            style={{ textDecoration: "none" }}
-          >
-            Sign out
-          </a>
-        </div>
+        </Card>
       </div>
     </Layout>
   );
+}
+
+function Card({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="flex items-baseline justify-between border-b border-border px-5 py-3.5">
+      <h2 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h2>
+      {hint ? <span className="text-[12px] text-ink-muted">{hint}</span> : null}
+    </div>
+  );
+}
+
+function Field({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-[12.5px] font-medium text-ink">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Dt({ children }: { children: ReactNode }) {
+  return (
+    <dt className="text-[11.5px] font-medium uppercase tracking-wider text-ink-subtle">
+      {children}
+    </dt>
+  );
+}
+function Dd({ children }: { children: ReactNode }) {
+  return <dd className="text-ink">{children}</dd>;
 }

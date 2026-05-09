@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
@@ -48,8 +48,6 @@ export function AppointmentDetailPage() {
     enabled: !!id,
   });
 
-  // Resolve the patient's display name. The hook tolerates an empty
-  // array, so the call is safe before the appointment loads.
   const patientLookup = useLookup(query.data ? [query.data.patientId] : []);
 
   const transition = useMutation<
@@ -87,7 +85,7 @@ export function AppointmentDetailPage() {
   if (!id) {
     return (
       <Layout title="Appointment">
-        <p>Missing id.</p>
+        <p className="text-[13px] text-ink-muted">Missing id.</p>
       </Layout>
     );
   }
@@ -95,23 +93,23 @@ export function AppointmentDetailPage() {
   if (query.isPending) {
     return (
       <Layout title="Appointment">
-        <div className="detail-grid">
-          <div className="detail-section">
-            <h3>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+          <Card>
+            <CardHeader>
               <Skeleton width={160} height={16} />
-            </h3>
-            <div className="body">
+            </CardHeader>
+            <div className="p-5">
               <Skeleton height={80} />
             </div>
-          </div>
-          <div className="detail-section">
-            <h3>
+          </Card>
+          <Card>
+            <CardHeader>
               <Skeleton width={120} height={16} />
-            </h3>
-            <div className="body">
+            </CardHeader>
+            <div className="p-5">
               <Skeleton height={120} />
             </div>
-          </div>
+          </Card>
         </div>
       </Layout>
     );
@@ -120,9 +118,12 @@ export function AppointmentDetailPage() {
   if (query.isError || !query.data) {
     return (
       <Layout title="Appointment">
-        <div className="alert alert-error">
+        <div className="rounded-md border border-danger/20 bg-danger-subtle px-3.5 py-2.5 text-[13px] text-danger">
           Couldn&apos;t load this appointment — {query.error?.message ?? "unknown"}.{" "}
-          <Link to="/appointments" style={{ marginLeft: 8 }}>
+          <Link
+            to="/appointments"
+            className="ml-2 font-medium text-brand-700 hover:underline"
+          >
             Back to list
           </Link>
         </div>
@@ -144,99 +145,86 @@ export function AppointmentDetailPage() {
     <Layout
       title="Appointment"
       meta={
-        <Link to="/appointments" className="muted">
+        <Link to="/appointments" className="text-[12.5px] text-ink-muted hover:text-ink">
           ← All appointments
         </Link>
       }
     >
-      <div className="detail-grid">
-        <div>
-          <div className="detail-section" style={{ marginBottom: 16 }}>
-            <h3>Visit</h3>
-            <div className="body">
-              <div
-                className="row-spread"
-                style={{ marginBottom: 16, alignItems: "flex-start" }}
-              >
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>Visit</CardHeader>
+            <div className="p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                    }}
-                  >
+                  <div className="text-[20px] font-semibold tracking-tight text-ink">
                     {fullDate.format(start)}
                   </div>
-                  <div className="muted">
-                    {timeFmt.format(start)} – {timeFmt.format(end)} ·{" "}
+                  <div className="mt-1 text-[12.5px] text-ink-muted tabular-nums">
+                    {timeFmt.format(start)} – {timeFmt.format(end)}
+                    <span className="text-ink-subtle"> · </span>
                     {formatRelative(start)}
                   </div>
                 </div>
                 <StatusPill status={a.status} />
               </div>
 
-              <dl className="prop-list">
-                <dt>Patient</dt>
-                <dd>
-                  <strong>
+              <dl className="mt-5 grid grid-cols-1 gap-x-6 gap-y-3 text-[13px] sm:grid-cols-[120px_1fr]">
+                <Dt>Patient</Dt>
+                <Dd>
+                  <span className="font-medium text-ink">
                     {displayName(a.patientId, patientLookup.get(a.patientId), "patient")}
-                  </strong>{" "}
-                  <span className="muted" style={{ fontSize: 12 }}>
+                  </span>
+                  <span className="ml-1.5 text-[11.5px] text-ink-subtle">
                     #{a.patientId.slice(0, 8)}
                   </span>
                   <Link
                     to={`/patients/${a.patientId}`}
-                    style={{ marginLeft: 10, fontSize: 13 }}
+                    className="ml-3 text-[12px] font-medium text-brand-700 hover:text-brand-800 hover:underline"
                   >
                     View patient record
                   </Link>
-                </dd>
-                <dt>Reason</dt>
-                <dd>{a.reason ?? <span className="muted">— not provided</span>}</dd>
-                <dt>Booked</dt>
-                <dd>
-                  {fullDate.format(created)} · {formatRelative(created)}
-                </dd>
-                <dt>Last updated</dt>
-                <dd>{formatRelative(updated)}</dd>
+                </Dd>
+                <Dt>Reason</Dt>
+                <Dd>
+                  {a.reason ?? <span className="text-ink-subtle">— not provided</span>}
+                </Dd>
+                <Dt>Booked</Dt>
+                <Dd>
+                  {fullDate.format(created)}
+                  <span className="ml-1.5 text-ink-subtle">· {formatRelative(created)}</span>
+                </Dd>
+                <Dt>Last updated</Dt>
+                <Dd>{formatRelative(updated)}</Dd>
               </dl>
             </div>
-          </div>
+          </Card>
 
-          <div className="detail-section">
-            <h3>Clinical notes</h3>
-            <div className="body">
+          <Card>
+            <CardHeader>Clinical notes</CardHeader>
+            <div className="p-5">
               {a.notes ? (
-                <pre
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 13,
-                    whiteSpace: "pre-wrap",
-                    margin: 0,
-                    color: "var(--color-text)",
-                  }}
-                >
+                <pre className="m-0 whitespace-pre-wrap font-mono text-[13px] text-ink">
                   {a.notes}
                 </pre>
               ) : (
-                <p className="muted" style={{ margin: 0 }}>
+                <p className="m-0 text-[13px] text-ink-muted">
                   No notes yet. Start a consultation to capture clinical observations,
                   diagnoses, and follow-up actions.
                 </p>
               )}
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div>
-          <div className="detail-section" style={{ marginBottom: 16 }}>
-            <h3>Actions</h3>
-            <div className="body stack-3">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>Actions</CardHeader>
+            <div className="space-y-2 p-5">
               {canStartConsult ? (
                 <button
                   onClick={() => navigate(`/consultation/${a.id}`)}
-                  style={{ width: "100%" }}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-brand-700 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-800"
                 >
                   <PlayIcon size={12} />
                   Start consultation
@@ -247,12 +235,7 @@ export function AppointmentDetailPage() {
                   href={`https://meet.jit.si/telehealth-${a.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn secondary"
-                  style={{
-                    width: "100%",
-                    textDecoration: "none",
-                    justifyContent: "center",
-                  }}
+                  className="inline-flex w-full items-center justify-center rounded-md border border-border bg-white px-3.5 py-2 text-[13px] font-medium text-ink transition hover:bg-[#F6F8FA]"
                 >
                   Join video room
                 </a>
@@ -261,88 +244,80 @@ export function AppointmentDetailPage() {
                 <button
                   onClick={() => transition.mutate("confirmed")}
                   disabled={transition.isPending}
-                  style={{ width: "100%" }}
+                  className="w-full rounded-md bg-brand-700 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
                 >
                   ✓ Accept booking
                 </button>
               ) : null}
               {canComplete && !canStartConsult ? (
                 <button
-                  className="secondary"
                   onClick={() => transition.mutate("completed")}
                   disabled={transition.isPending}
-                  style={{ width: "100%" }}
+                  className="w-full rounded-md border border-border bg-white px-3.5 py-2 text-[13px] font-medium text-ink transition hover:bg-[#F6F8FA] disabled:opacity-60"
                 >
                   Mark complete
                 </button>
               ) : null}
               {canCancel ? (
                 <button
-                  className="danger"
                   onClick={() => setConfirmCancel(true)}
                   disabled={transition.isPending}
-                  style={{ width: "100%" }}
+                  className="w-full rounded-md border border-rose-200 bg-white px-3.5 py-2 text-[13px] font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
                 >
                   {a.status === "scheduled" ? "Reject booking" : "Cancel"}
                 </button>
               ) : null}
               {!canConfirm && !canComplete && !canCancel ? (
-                <p className="muted" style={{ margin: 0 }}>
+                <p className="m-0 text-[12.5px] text-ink-muted">
                   This appointment is{" "}
                   {a.status === "completed" ? "complete" : "cancelled"}.
                 </p>
               ) : null}
             </div>
-          </div>
+          </Card>
 
-          <div className="detail-section">
-            <h3>Timeline</h3>
-            <div className="body">
-              <ul className="timeline">
-                <li>
-                  <span className="when">
-                    {created.toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  <span className="what">Booking received</span>
-                </li>
-                {a.status !== "scheduled" ? (
-                  <li className={a.status === "cancelled" ? "muted" : ""}>
-                    <span className="when">
-                      {updated.toLocaleString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <span className="what">
-                      {a.status === "confirmed"
-                        ? "Confirmed by you"
-                        : a.status === "completed"
-                          ? "Consultation completed"
-                          : "Cancelled"}
-                    </span>
-                  </li>
-                ) : null}
-                <li className="muted">
-                  <span className="when">
-                    {start.toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  <span className="what">Scheduled visit time</span>
-                </li>
-              </ul>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>Timeline</CardHeader>
+            <ul className="space-y-3 p-5">
+              <TimelineItem
+                when={created.toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+                what="Booking received"
+              />
+              {a.status !== "scheduled" ? (
+                <TimelineItem
+                  muted={a.status === "cancelled"}
+                  when={updated.toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                  what={
+                    a.status === "confirmed"
+                      ? "Confirmed by you"
+                      : a.status === "completed"
+                        ? "Consultation completed"
+                        : "Cancelled"
+                  }
+                />
+              ) : null}
+              <TimelineItem
+                muted
+                when={start.toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+                what="Scheduled visit time"
+              />
+            </ul>
+          </Card>
         </div>
       </div>
 
@@ -361,6 +336,54 @@ export function AppointmentDetailPage() {
   );
 }
 
+function Card({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ children }: { children: ReactNode }) {
+  return (
+    <div className="border-b border-border px-5 py-3.5 text-[13px] font-semibold tracking-tight text-ink">
+      {children}
+    </div>
+  );
+}
+
+function Dt({ children }: { children: ReactNode }) {
+  return (
+    <dt className="text-[11.5px] font-medium uppercase tracking-wider text-ink-subtle">
+      {children}
+    </dt>
+  );
+}
+
+function Dd({ children }: { children: ReactNode }) {
+  return <dd className="text-ink">{children}</dd>;
+}
+
+function TimelineItem({
+  when,
+  what,
+  muted = false,
+}: {
+  when: string;
+  what: string;
+  muted?: boolean;
+}) {
+  return (
+    <li className={"flex items-start gap-3 " + (muted ? "opacity-60" : "")}>
+      <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-500" />
+      <div>
+        <div className="text-[12px] font-medium text-ink-muted tabular-nums">{when}</div>
+        <div className="text-[13px] text-ink">{what}</div>
+      </div>
+    </li>
+  );
+}
+
 function ConfirmCancel({
   status,
   onClose,
@@ -374,22 +397,37 @@ function ConfirmCancel({
 }) {
   useEscapeKey(onClose);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
       <div
-        className="modal"
+        className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-white shadow-xl"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>
-          {status === "scheduled" ? "Reject this booking?" : "Cancel this appointment?"}
-        </h2>
-        <p>The patient will be notified.</p>
-        <div className="modal-actions">
-          <button className="secondary" onClick={onClose} disabled={busy}>
+        <div className="px-6 pt-6 pb-2">
+          <h2 className="text-[16px] font-semibold tracking-tight text-ink">
+            {status === "scheduled" ? "Reject this booking?" : "Cancel this appointment?"}
+          </h2>
+          <p className="mt-2 text-[13.5px] text-ink-muted">
+            The patient will be notified.
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-[#FBFCFD] px-6 py-3">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-md border border-border bg-white px-3.5 py-2 text-[13px] font-medium text-ink transition hover:bg-[#F6F8FA] disabled:opacity-60"
+          >
             Go back
           </button>
-          <button className="danger" onClick={onConfirm} disabled={busy}>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded-md bg-rose-600 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+          >
             {status === "scheduled" ? "Yes, reject" : "Yes, cancel"}
           </button>
         </div>
