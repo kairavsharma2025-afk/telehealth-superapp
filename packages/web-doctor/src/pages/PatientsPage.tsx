@@ -77,7 +77,6 @@ export function PatientsPage() {
     return summarise(mine);
   }, [query.data, user?.id]);
 
-  // Resolve every patient's name in one batch.
   const lookup = useLookup(patients.map((p) => p.patientId));
 
   const visible = useMemo(() => {
@@ -92,33 +91,40 @@ export function PatientsPage() {
   }, [patients, search, lookup]);
 
   return (
-    <Layout
-      title="Patients"
-      meta={<span>{patients.length} unique</span>}
-    >
-      <div className="card">
-        <div className="toolbar">
-          <div className="search">
-            <span className="icon" aria-hidden="true">🔍</span>
+    <Layout title="Patients" meta={<span>{patients.length} unique</span>}>
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+        <div className="border-b border-border px-5 py-4">
+          <div className="relative max-w-md">
+            <span
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+              aria-hidden="true"
+            >
+              <SearchIcon />
+            </span>
             <input
               type="search"
-              placeholder="Search by patient ID…"
+              placeholder="Search by name or patient ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-md border border-border bg-white py-2 pl-9 pr-3 text-[13px] text-ink placeholder:text-ink-subtle outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
         </div>
 
         {query.isPending ? (
-          <div className="card-pad muted">Loading patients…</div>
+          <div className="px-5 py-12 text-center text-[13px] text-ink-muted">
+            Loading patients…
+          </div>
         ) : query.isError ? (
-          <div className="card-pad">
-            <div className="alert alert-error">{query.error.message}</div>
+          <div className="px-5 py-4">
+            <div className="rounded-md border border-danger/20 bg-danger-subtle px-3 py-2 text-[13px] text-danger">
+              {query.error.message}
+            </div>
           </div>
         ) : visible.length === 0 ? (
           <EmptyState
             icon={
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
                 strokeLinejoin="round">
                 <path d="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z M3 21a9 9 0 0 1 18 0" />
@@ -127,12 +133,12 @@ export function PatientsPage() {
             title={search ? "No matches" : "No patients yet"}
             description={
               search
-                ? "Try a different ID prefix."
+                ? "Try a different name or ID prefix."
                 : "Once patients book with you, they'll show up here."
             }
           />
         ) : (
-          <div>
+          <ul>
             {visible.map((p) => {
               const info = lookup.get(p.patientId);
               const name = info?.fullName
@@ -144,43 +150,64 @@ export function PatientsPage() {
                 .map((w) => w.charAt(0).toUpperCase())
                 .join("");
               return (
-                <Link
-                  key={p.patientId}
-                  to={`/patients/${p.patientId}`}
-                  className="patient-row"
-                  style={{ textDecoration: "none", color: "inherit" }}
-                >
-                  <div className="avatar" aria-hidden="true">
-                    {initials || "??"}
-                  </div>
-                  <div>
-                    <div className="name">{name}</div>
-                    <div className="stats">
-                      {p.visits} visit{p.visits === 1 ? "" : "s"} ·{" "}
-                      {p.completed} completed
-                      {p.upcoming > 0 ? ` · ${p.upcoming} upcoming` : ""}
+                <li key={p.patientId}>
+                  <Link
+                    to={`/patients/${p.patientId}`}
+                    className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0 transition hover:bg-[#FBFCFD]"
+                  >
+                    <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-brand-100 text-[12.5px] font-semibold text-brand-800">
+                      {initials || "??"}
                     </div>
-                  </div>
-                  <div className="muted" style={{ fontSize: 13, textAlign: "right" }}>
-                    {p.nextVisitAt ? (
-                      <>
-                        Next:{" "}
-                        <strong style={{ color: "var(--color-brand-700)" }}>
-                          {formatRelative(new Date(p.nextVisitAt))}
-                        </strong>
-                      </>
-                    ) : p.lastVisitAt ? (
-                      <>Last: {formatRelative(new Date(p.lastVisitAt))}</>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
-                </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13.5px] font-medium text-ink">
+                        {name}
+                      </div>
+                      <div className="mt-0.5 truncate text-[12px] text-ink-muted">
+                        {p.visits} visit{p.visits === 1 ? "" : "s"}
+                        <span className="text-ink-subtle"> · </span>
+                        {p.completed} completed
+                        {p.upcoming > 0 ? (
+                          <>
+                            <span className="text-ink-subtle"> · </span>
+                            {p.upcoming} upcoming
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 text-right text-[12px] text-ink-muted">
+                      {p.nextVisitAt ? (
+                        <>
+                          <span className="text-ink-subtle">Next: </span>
+                          <span className="font-medium text-brand-700">
+                            {formatRelative(new Date(p.nextVisitAt))}
+                          </span>
+                        </>
+                      ) : p.lastVisitAt ? (
+                        <>
+                          <span className="text-ink-subtle">Last: </span>
+                          {formatRelative(new Date(p.lastVisitAt))}
+                        </>
+                      ) : (
+                        <span className="text-ink-subtle">—</span>
+                      )}
+                    </div>
+                  </Link>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </div>
     </Layout>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+      strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="7" cy="7" r="5" />
+      <path d="m13 13-2.5-2.5" />
+    </svg>
   );
 }

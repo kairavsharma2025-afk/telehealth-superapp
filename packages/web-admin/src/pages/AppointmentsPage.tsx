@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "../lib/api";
@@ -103,7 +103,6 @@ function titleCase(name: string): string {
 
 interface DisplayInfo {
   text: string;
-  /** True when we couldn't find the user's real name and fell back. */
   unknown: boolean;
 }
 
@@ -154,6 +153,20 @@ type StatusFilter =
   | "completed"
   | "cancelled";
 
+const STATUS_PILL: Record<Appointment["status"], string> = {
+  scheduled: "bg-amber-50 text-amber-700 ring-amber-200",
+  confirmed: "bg-blue-50 text-blue-700 ring-blue-200",
+  completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  cancelled: "bg-rose-50 text-rose-700 ring-rose-200",
+};
+
+const STATUS_LABEL: Record<Appointment["status"], string> = {
+  scheduled: "Scheduled",
+  confirmed: "Confirmed",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
 export function AppointmentsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -192,8 +205,6 @@ export function AppointmentsPage() {
     },
   });
 
-  // Sync the URL ?status= deep link from the Overview cards to local
-  // state. Re-runs when the user navigates back/forward.
   useEffect(() => {
     const initial = searchParams.get("status");
     if (
@@ -265,169 +276,193 @@ export function AppointmentsPage() {
   }, [items]);
 
   return (
-    <div>
-      <header className="page-header">
-        <h1>Appointments</h1>
-        <div className="filters">
-          <label className="muted" htmlFor="range">Range</label>
-          <select
-            id="range"
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+            Appointments
+          </h1>
+          <p className="mt-1 text-[13px] text-ink-muted">
+            Every appointment across the platform.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
             value={range}
-            onChange={(e) => setRange(e.target.value as RangeKey)}
-          >
-            <option value="today">Today only</option>
-            <option value="week-window">±7 days (past + today + upcoming)</option>
-            <option value="month-window">±30 days (past + today + upcoming)</option>
-            <option value="upcoming-week">Next 7 days</option>
-            <option value="upcoming-month">Next 30 days</option>
-            <option value="past-week">Past 7 days</option>
-            <option value="past-month">Past 30 days</option>
-            <option value="all">All time</option>
-          </select>
-          <label className="muted" htmlFor="status-filter">Status</label>
-          <select
-            id="status-filter"
+            onChange={(v) => setRange(v as RangeKey)}
+            ariaLabel="Range"
+            options={[
+              { value: "today", label: "Today only" },
+              { value: "week-window", label: "±7 days" },
+              { value: "month-window", label: "±30 days" },
+              { value: "upcoming-week", label: "Next 7 days" },
+              { value: "upcoming-month", label: "Next 30 days" },
+              { value: "past-week", label: "Past 7 days" },
+              { value: "past-month", label: "Past 30 days" },
+              { value: "all", label: "All time" },
+            ]}
+          />
+          <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            aria-label="Filter by status"
-          >
-            <option value="all">All statuses</option>
-            <option value="scheduled">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+            onChange={(v) => setStatusFilter(v as StatusFilter)}
+            ariaLabel="Filter by status"
+            options={[
+              { value: "all", label: "All statuses" },
+              { value: "scheduled", label: "Pending" },
+              { value: "confirmed", label: "Confirmed" },
+              { value: "completed", label: "Completed" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+          />
         </div>
       </header>
 
-      <div className="kpi-grid">
-        <Kpi label="Total appointments" value={kpis.total} brand />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kpi label="Total appointments" value={kpis.total} primary />
         <Kpi label="Today" value={kpis.today} />
         <Kpi label="Currently confirmed" value={kpis.confirmed} />
         <Kpi label="Cancellation rate" value={`${kpis.cancelRate}%`} />
       </div>
 
       {query.isError ? (
-        <div className="alert alert-error">Failed to load: {query.error.message}</div>
+        <Alert>Failed to load: {query.error.message}</Alert>
       ) : null}
       {cancelMut.isError ? (
-        <div className="alert alert-error">Cancel failed: {cancelMut.error.message}</div>
+        <Alert>Cancel failed: {cancelMut.error.message}</Alert>
       ) : null}
 
-      <div className="card">
-        <div className="card-header">
-          <h2>All appointments</h2>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-[15px] font-semibold tracking-tight text-ink">
+            All appointments
+          </h2>
+          <div className="flex items-center gap-3">
             <button
-              className="secondary"
               onClick={() => setShowReason((s) => !s)}
               aria-pressed={showReason}
-              style={{ padding: "5px 12px", fontSize: "var(--font-size-xs)" }}
+              className="rounded-md border border-border bg-white px-2.5 py-1 text-[12px] font-medium text-ink-muted transition hover:bg-[#F6F8FA] hover:text-ink"
             >
-              {showReason ? "Hide Reason column" : "Show Reason column"}
+              {showReason ? "Hide Reason" : "Show Reason"}
             </button>
-            <span className="muted">
+            <span className="text-[12.5px] text-ink-muted">
               {items.length} {items.length === 1 ? "row" : "rows"}
             </span>
           </div>
         </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Patient</th>
-              <th>Doctor</th>
-              {showReason ? <th>Reason</th> : null}
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {query.isPending ? (
-              <tr>
-                <td
-                  colSpan={showReason ? 6 : 5}
-                  className="muted"
-                  style={{ padding: 24 }}
-                >
-                  Loading…
-                </td>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[13px]">
+            <thead>
+              <tr className="border-b border-border bg-[#FBFCFD]">
+                <Th>When</Th>
+                <Th>Patient</Th>
+                <Th>Doctor</Th>
+                {showReason ? <Th>Reason</Th> : null}
+                <Th>Status</Th>
+                <th className="px-4 py-2.5"></th>
               </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={showReason ? 6 : 5} style={{ padding: 0 }}>
-                  <EmptyState
-                    title="No results found"
-                    description={
-                      statusFilter !== "all"
-                        ? `No ${statusFilter} appointments in this window.`
-                        : "Nothing in this window. Try a wider range."
-                    }
-                    action={
-                      statusFilter !== "all" || range !== "week-window" ? (
-                        <button
-                          className="secondary"
-                          onClick={() => {
-                            setStatusFilter("all");
-                            setRange("week-window");
-                          }}
-                        >
-                          Clear filters
-                        </button>
-                      ) : undefined
-                    }
-                  />
-                </td>
-              </tr>
-            ) : (
-              items.map((a) => {
-                const patient = displayInfo(
-                  lookupMap.get(a.patientId),
-                  "patient",
-                );
-                const doctor = displayInfo(
-                  lookupMap.get(a.doctorId),
-                  "doctor",
-                );
-                return (
-                  <tr key={a.id}>
-                    <td>{fmtRange(a.startAt, a.endAt)}</td>
-                    <td className={patient.unknown ? "muted" : ""}>
-                      {patient.text}
-                    </td>
-                    <td className={doctor.unknown ? "muted" : ""}>
-                      {doctor.text}
-                    </td>
-                    {showReason ? (
-                      <td className="muted">{a.reason ?? "—"}</td>
-                    ) : null}
-                    <td>
-                      <span className={`pill pill-${a.status}`}>{a.status}</span>
-                    </td>
-                    <td className="actions">
-                      {a.status === "scheduled" || a.status === "confirmed" ? (
-                        <button
-                          className="danger"
-                          disabled={cancelMut.isPending}
-                          onClick={() => setPendingCancel(a)}
-                        >
-                          Force cancel
-                        </button>
+            </thead>
+            <tbody>
+              {query.isPending ? (
+                <tr>
+                  <td
+                    colSpan={showReason ? 6 : 5}
+                    className="px-5 py-12 text-center text-[13px] text-ink-muted"
+                  >
+                    Loading…
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={showReason ? 6 : 5} className="p-0">
+                    <EmptyState
+                      title="No results found"
+                      description={
+                        statusFilter !== "all"
+                          ? `No ${statusFilter} appointments in this window.`
+                          : "Nothing in this window. Try a wider range."
+                      }
+                      action={
+                        statusFilter !== "all" || range !== "week-window" ? (
+                          <button
+                            onClick={() => {
+                              setStatusFilter("all");
+                              setRange("week-window");
+                            }}
+                            className="rounded-md border border-border bg-white px-3 py-1.5 text-[12.5px] font-medium text-ink-muted transition hover:bg-[#F6F8FA] hover:text-ink"
+                          >
+                            Clear filters
+                          </button>
+                        ) : undefined
+                      }
+                    />
+                  </td>
+                </tr>
+              ) : (
+                items.map((a) => {
+                  const patient = displayInfo(lookupMap.get(a.patientId), "patient");
+                  const doctor = displayInfo(lookupMap.get(a.doctorId), "doctor");
+                  return (
+                    <tr
+                      key={a.id}
+                      className="border-b border-border last:border-b-0 transition hover:bg-[#FBFCFD]"
+                    >
+                      <td className="px-4 py-3 text-[12.5px] text-ink tabular-nums">
+                        {fmtRange(a.startAt, a.endAt)}
+                      </td>
+                      <td
+                        className={
+                          "px-4 py-3 " +
+                          (patient.unknown ? "text-ink-subtle italic" : "text-ink")
+                        }
+                      >
+                        {patient.text}
+                      </td>
+                      <td
+                        className={
+                          "px-4 py-3 " +
+                          (doctor.unknown ? "text-ink-subtle italic" : "text-ink")
+                        }
+                      >
+                        {doctor.text}
+                      </td>
+                      {showReason ? (
+                        <td className="px-4 py-3 text-[12.5px] text-ink-muted">
+                          {a.reason ?? "—"}
+                        </td>
                       ) : null}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                      <td className="px-4 py-3">
+                        <span
+                          className={
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 " +
+                            STATUS_PILL[a.status]
+                          }
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-current"
+                            aria-hidden="true"
+                          />
+                          {STATUS_LABEL[a.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {a.status === "scheduled" || a.status === "confirmed" ? (
+                          <button
+                            disabled={cancelMut.isPending}
+                            onClick={() => setPendingCancel(a)}
+                            className="rounded-md px-2.5 py-1 text-[12.5px] font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            Force cancel
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <ConfirmDialog
@@ -472,19 +507,71 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+function Th({ children }: { children: ReactNode }) {
+  return (
+    <th className="px-4 py-2.5 text-[11.5px] font-semibold uppercase tracking-wider text-ink-muted">
+      {children}
+    </th>
+  );
+}
+
+function Alert({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-md border border-danger/20 bg-danger-subtle px-3.5 py-2.5 text-[13px] text-danger">
+      {children}
+    </div>
+  );
+}
+
+function Select({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
+      className="rounded-md border border-border bg-white px-3 py-2 text-[13px] text-ink outline-none transition focus:border-slate-700 focus:ring-2 focus:ring-slate-500/15"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function Kpi({
   label,
   value,
-  brand: isBrand = false,
+  primary = false,
 }: {
   label: string;
   value: number | string;
-  brand?: boolean;
+  primary?: boolean;
 }) {
   return (
-    <div className={`kpi${isBrand ? " brand" : ""}`}>
-      <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{value}</span>
+    <div
+      className={
+        "flex flex-col rounded-xl border bg-white p-4 " +
+        (primary ? "border-slate-300" : "border-border")
+      }
+    >
+      <span className="text-[11.5px] font-medium uppercase tracking-wider text-ink-muted">
+        {label}
+      </span>
+      <span className="mt-2 text-[26px] font-semibold tracking-tight text-ink tabular-nums">
+        {value}
+      </span>
     </div>
   );
 }
