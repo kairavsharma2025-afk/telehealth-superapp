@@ -1,3 +1,4 @@
+import "./global.css";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import {

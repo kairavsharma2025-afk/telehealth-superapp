@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -13,7 +12,7 @@ import {
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Logo } from "../components/Logo";
-import { brand, fontWeight, palette, radius, semantic, space } from "../theme";
+import { brand } from "../theme";
 
 export function LoginScreen() {
   const { login } = useAuth();
@@ -39,197 +38,102 @@ export function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.root}
+      className="flex-1 bg-[#F6F8FA]"
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerClassName="flex-grow justify-center p-5"
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.brandBlock}>
-          <View style={styles.logoMark}>
-            <Logo size={36} color={palette.white} />
-          </View>
-          <Text style={styles.brandName}>{brand.name}</Text>
-          <Text style={styles.brandTagline}>{brand.tagline}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to continue your care.</Text>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="username"
-              placeholder="you@example.com"
-              placeholderTextColor={semantic.textSubtle}
-              style={styles.input}
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              textContentType="password"
-              placeholder="At least 8 characters"
-              placeholderTextColor={semantic.textSubtle}
-              style={styles.input}
-            />
-          </View>
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+        <View className="items-center mb-8">
+          <View className="flex-row items-center gap-2.5">
+            <View className="h-8 w-8 rounded-lg bg-brand-700 items-center justify-center">
+              <Logo size={18} color="#fff" />
             </View>
-          ) : null}
-
-          <TouchableOpacity
-            onPress={() => void onSubmit()}
-            disabled={!canSubmit}
-            style={[styles.button, !canSubmit && styles.buttonDisabled]}
-            activeOpacity={0.85}
-          >
-            {submitting ? (
-              <ActivityIndicator color={palette.white} />
-            ) : (
-              <Text style={styles.buttonText}>Sign in</Text>
-            )}
-          </TouchableOpacity>
-
-          <Text style={styles.helpText}>
-            Trouble signing in? Contact{" "}
-            <Text style={styles.link}>{brand.supportEmail}</Text>
-          </Text>
+            <Text className="text-[15px] font-semibold text-ink tracking-tight">
+              {brand.name}
+            </Text>
+          </View>
         </View>
 
-        <Text style={styles.footer}>
+        <View className="bg-white rounded-2xl border border-line overflow-hidden">
+          <View className="h-[3px] bg-brand-700" />
+
+          <View className="px-6 pt-7 pb-2">
+            <Text className="text-[20px] font-semibold text-ink tracking-tight">
+              Sign in
+            </Text>
+            <Text className="text-[13px] text-ink-muted mt-1.5">
+              Continue your care.
+            </Text>
+          </View>
+
+          <View className="px-6 pb-6 pt-4 gap-4">
+            <View className="gap-1.5">
+              <Text className="text-[12px] font-medium text-ink">Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="username"
+                placeholder="you@example.com"
+                placeholderTextColor="#94A3B8"
+                className="bg-white border border-line rounded-md px-3 py-2.5 text-[14px] text-ink"
+              />
+            </View>
+
+            <View className="gap-1.5">
+              <Text className="text-[12px] font-medium text-ink">Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                textContentType="password"
+                placeholder="••••••••"
+                placeholderTextColor="#94A3B8"
+                className="bg-white border border-line rounded-md px-3 py-2.5 text-[14px] text-ink"
+              />
+            </View>
+
+            {error ? (
+              <View className="bg-danger-subtle border border-danger/20 rounded-md px-3 py-2">
+                <Text className="text-[13px] text-danger">{error}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              onPress={() => void onSubmit()}
+              disabled={!canSubmit}
+              activeOpacity={0.85}
+              className={`rounded-md py-3 items-center justify-center mt-1 ${
+                canSubmit ? "bg-brand-700" : "bg-ink-subtle"
+              }`}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white text-[14px] font-semibold">Sign in</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View className="border-t border-line bg-[#FBFCFD] px-6 py-3">
+            <Text className="text-[11px] text-ink-muted">
+              Encrypted in transit · Session signed
+            </Text>
+          </View>
+        </View>
+
+        <Text className="text-[11px] text-ink-muted text-center mt-6">
+          Need help?{" "}
+          <Text className="text-brand-700 font-semibold">{brand.supportEmail}</Text>
+        </Text>
+
+        <Text className="text-[10.5px] text-ink-subtle text-center mt-6">
           © {new Date().getFullYear()} {brand.name}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: semantic.bg,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: space[5],
-    gap: space[5],
-  },
-  brandBlock: {
-    alignItems: "center",
-    gap: space[2],
-    marginTop: space[4],
-  },
-  logoMark: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: palette.brand700,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: space[2],
-  },
-  brandName: {
-    fontSize: 22,
-    fontWeight: fontWeight.bold,
-    color: semantic.text,
-    letterSpacing: -0.4,
-  },
-  brandTagline: {
-    fontSize: 14,
-    color: semantic.textMuted,
-  },
-  card: {
-    backgroundColor: semantic.surface,
-    borderRadius: radius.xl,
-    padding: space[5],
-    gap: space[3],
-    borderWidth: 1,
-    borderColor: semantic.border,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: fontWeight.semibold,
-    color: semantic.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: semantic.textMuted,
-    marginBottom: space[3],
-  },
-  field: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: fontWeight.medium,
-    color: semantic.text,
-  },
-  input: {
-    backgroundColor: semantic.surface,
-    borderColor: semantic.borderStrong,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space[3],
-    paddingVertical: 11,
-    fontSize: 15,
-    color: semantic.text,
-  },
-  errorBox: {
-    backgroundColor: "#FEE2E2",
-    borderColor: "#FCA5A5",
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space[3],
-    paddingVertical: space[2],
-  },
-  errorText: {
-    color: semantic.danger,
-    fontSize: 13,
-  },
-  button: {
-    backgroundColor: palette.brand700,
-    paddingVertical: 13,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: space[2],
-  },
-  buttonDisabled: {
-    backgroundColor: palette.slate400,
-  },
-  buttonText: {
-    color: palette.white,
-    fontSize: 16,
-    fontWeight: fontWeight.semibold,
-  },
-  helpText: {
-    fontSize: 12,
-    color: semantic.textMuted,
-    textAlign: "center",
-    marginTop: space[2],
-  },
-  link: {
-    color: palette.brand700,
-    fontWeight: fontWeight.semibold,
-  },
-  footer: {
-    fontSize: 12,
-    color: semantic.textSubtle,
-    textAlign: "center",
-  },
-});

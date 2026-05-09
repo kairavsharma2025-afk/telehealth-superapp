@@ -17,6 +17,6 @@
     // imports, which resolve to the local copies.
     "types": ["node"]
   },
-  "include": ["index.ts", "App.tsx", "src/**/*"],
+  "include": ["index.ts", "App.tsx", "src/**/*", "nativewind-env.d.ts"],
   "exclude": ["node_modules", ".expo", "dist"]
 }
