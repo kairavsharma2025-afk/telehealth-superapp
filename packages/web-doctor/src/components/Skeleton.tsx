@@ -11,7 +11,7 @@ export function Skeleton({
 }) {
   return (
     <div
-      className="skeleton"
+      className="animate-pulse bg-slate-100"
       style={{ width, height, borderRadius: radius, ...style }}
       aria-hidden="true"
     />
@@ -20,9 +20,9 @@ export function Skeleton({
 
 export function AppointmentRowSkeleton() {
   return (
-    <div className="appt-row">
+    <div className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
       <Skeleton width={76} height={56} radius={8} />
-      <div className="stack-2" style={{ flex: 1 }}>
+      <div className="flex-1 space-y-2">
         <Skeleton width="40%" height={14} />
         <Skeleton width="60%" height={12} />
       </div>

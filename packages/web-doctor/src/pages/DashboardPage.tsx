@@ -22,9 +22,6 @@ interface ListResult {
 
 type Tab = "today" | "upcoming" | "completed" | "cancelled";
 
-// Cancellation rate is meaningless until there's enough history to
-// produce a stable signal — anything below this threshold renders as
-// "—" with a "Not enough data yet" tooltip.
 const CANCEL_RATE_MIN_SAMPLE = 5;
 
 function listAppointments(): Promise<ListResult> {
@@ -137,69 +134,80 @@ export function DashboardPage() {
       )[0];
   }, [mine]);
 
-  // Resolve patient names for the Next-up hero + every visible row.
   const patientLookup = useLookup(mine.map((a) => a.patientId));
 
   return (
     <Layout title="Dashboard" meta={<span>Today · {new Date().toLocaleDateString()}</span>}>
       {nextUp ? (
-        <div className="next-up">
-          <div>
-            <span className="label">Next up</span>
-            <h2>
-              {displayName(
-                nextUp.patientId,
-                patientLookup.get(nextUp.patientId),
-                "patient",
-              )}
-            </h2>
-            <span className="countdown">
-              <KpiClockIcon />
-              {nextUp.reason ? `${nextUp.reason} · ` : ""}
-              {formatRelative(new Date(nextUp.startAt))} ·{" "}
-              {new Date(nextUp.startAt).toLocaleTimeString(undefined, {
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </span>
-          </div>
-          <div className="next-up-actions">
-            {nextUp.status === "scheduled" ? (
-              <button
-                className="next-up-cta-primary"
-                onClick={() =>
-                  transition.mutate({ id: nextUp.id, to: "confirmed" })
-                }
-                disabled={transition.isPending}
+        <div className="mb-6 overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+          <div className="h-[3px] bg-brand-700" aria-hidden="true" />
+          <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wider text-brand-700">
+                Next up
+              </div>
+              <h2 className="mt-1 truncate text-[18px] font-semibold tracking-tight text-ink">
+                {displayName(
+                  nextUp.patientId,
+                  patientLookup.get(nextUp.patientId),
+                  "patient",
+                )}
+              </h2>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-ink-muted">
+                <KpiClockIcon />
+                {nextUp.reason ? (
+                  <>
+                    <span>{nextUp.reason}</span>
+                    <span className="text-ink-subtle">·</span>
+                  </>
+                ) : null}
+                <span>{formatRelative(new Date(nextUp.startAt))}</span>
+                <span className="text-ink-subtle">·</span>
+                <span className="tabular-nums">
+                  {new Date(nextUp.startAt).toLocaleTimeString(undefined, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-2">
+              {nextUp.status === "scheduled" ? (
+                <button
+                  onClick={() =>
+                    transition.mutate({ id: nextUp.id, to: "confirmed" })
+                  }
+                  disabled={transition.isPending}
+                  className="rounded-md bg-brand-700 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
+                >
+                  Accept
+                </button>
+              ) : nextUp.status === "confirmed" ? (
+                <button
+                  onClick={() => navigate(`/consultation/${nextUp.id}`)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-800"
+                >
+                  <PlayIcon size={12} />
+                  Start consultation
+                </button>
+              ) : null}
+              <Link
+                to={`/appointments/${nextUp.id}`}
+                className="rounded-md border border-border bg-white px-3.5 py-2 text-[13px] font-medium text-ink transition hover:bg-[#F6F8FA]"
               >
-                Accept
-              </button>
-            ) : nextUp.status === "confirmed" ? (
-              <button
-                className="next-up-cta-primary"
-                onClick={() => navigate(`/consultation/${nextUp.id}`)}
-              >
-                <PlayIcon size={12} />
-                Start consultation
-              </button>
-            ) : null}
-            <Link
-              to={`/appointments/${nextUp.id}`}
-              className="next-up-cta-ghost"
-            >
-              View details
-            </Link>
+                View details
+              </Link>
+            </div>
           </div>
         </div>
       ) : null}
 
-      <div className="kpi-grid">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi
           to="/appointments?filter=today"
           label="Today's queue"
           value={kpis.today}
           delta="Appointments today"
-          brand
           accent="teal"
           icon={<KpiCalendarIcon />}
         />
@@ -224,52 +232,57 @@ export function DashboardPage() {
           value={kpis.cancelRate === null ? "—" : `${kpis.cancelRate}%`}
           accent="red"
           icon={<KpiXCircleIcon />}
-          {...(kpis.cancelRate === null
-            ? { hint: "Not enough data yet" }
-            : {})}
+          {...(kpis.cancelRate === null ? { hint: "Not enough data yet" } : {})}
         />
       </div>
 
-      <div className="card">
-        <div className="card-header">
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+        <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2>Appointments</h2>
-            <div className="muted" style={{ marginTop: 2 }}>
+            <h2 className="text-[15px] font-semibold tracking-tight text-ink">
+              Appointments
+            </h2>
+            <div className="mt-0.5 text-[12px] text-ink-muted">
               {visible.length} {visible.length === 1 ? "appointment" : "appointments"}{" "}
-              <span className="muted">·</span> {tabLabel(tab)}
+              <span className="text-ink-subtle">·</span> {tabLabel(tab)}
             </div>
           </div>
-          <div className="tabs" role="tablist">
-            {(["today", "upcoming", "completed", "cancelled"] as const).map(
-              (t) => (
-                <button
-                  key={t}
-                  role="tab"
-                  aria-selected={tab === t}
-                  className={tab === t ? "active" : ""}
-                  onClick={() => setTab(t)}
-                >
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              ),
-            )}
+          <div
+            className="inline-flex flex-shrink-0 rounded-md border border-border bg-[#F6F8FA] p-0.5"
+            role="tablist"
+          >
+            {(["today", "upcoming", "completed", "cancelled"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={
+                  "rounded px-2.5 py-1 text-[12.5px] font-medium transition " +
+                  (tab === t
+                    ? "bg-white text-ink shadow-sm"
+                    : "text-ink-muted hover:text-ink")
+                }
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
 
         {query.isPending ? (
-          <ul className="appt-list">
+          <ul>
             <AppointmentRowSkeleton />
             <AppointmentRowSkeleton />
             <AppointmentRowSkeleton />
           </ul>
         ) : query.isError ? (
-          <div className="card-pad">
-            <div className="alert alert-error">
+          <div className="px-5 py-4">
+            <div className="rounded-md border border-danger/20 bg-danger-subtle px-3 py-2 text-[13px] text-danger">
               Couldn&apos;t load appointments — {query.error.message}.{" "}
               <button
-                className="link"
+                className="ml-1 font-medium underline"
                 onClick={() => void query.refetch()}
-                style={{ marginLeft: 8 }}
               >
                 Retry
               </button>
@@ -282,7 +295,7 @@ export function DashboardPage() {
             description={emptyDescription(tab)}
           />
         ) : (
-          <ul className="appt-list">
+          <ul>
             {visible.map((appointment) => (
               <AppointmentCard
                 key={appointment.id}
@@ -326,14 +339,23 @@ function emptyDescription(tab: Tab): string {
 
 type KpiAccent = "teal" | "amber" | "green" | "red";
 
+const ACCENT_STYLES: Record<
+  KpiAccent,
+  { iconBg: string; iconText: string }
+> = {
+  teal: { iconBg: "bg-brand-50", iconText: "text-brand-700" },
+  amber: { iconBg: "bg-amber-50", iconText: "text-amber-700" },
+  green: { iconBg: "bg-emerald-50", iconText: "text-emerald-700" },
+  red: { iconBg: "bg-rose-50", iconText: "text-rose-700" },
+};
+
 function Kpi({
   to,
   label,
   value,
   delta,
   hint,
-  brand: isBrand = false,
-  accent,
+  accent = "teal",
   icon,
 }: {
   to: string;
@@ -341,27 +363,58 @@ function Kpi({
   value: number | string;
   delta?: string;
   hint?: string;
-  brand?: boolean;
   accent?: KpiAccent;
   icon?: ReactNode;
 }) {
-  const cls = ["kpi"];
-  if (isBrand) cls.push("brand");
-  if (accent) cls.push(`kpi-accent-${accent}`);
+  const a = ACCENT_STYLES[accent];
   return (
-    <Link to={to} className={cls.join(" ")} title={hint}>
-      {icon ? <span className={`kpi-icon kpi-icon-${accent ?? "teal"}`}>{icon}</span> : null}
-      <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{value}</span>
-      {delta ? <span className="kpi-delta">{delta}</span> : null}
-      {hint && !delta ? <span className="kpi-delta">{hint}</span> : null}
+    <Link
+      to={to}
+      title={hint}
+      className="group flex flex-col rounded-xl border border-border bg-white p-4 transition hover:border-border-strong hover:shadow-[0_1px_2px_0_rgba(15,23,42,0.05),0_4px_12px_-4px_rgba(15,23,42,0.06)]"
+    >
+      <div className="flex items-center justify-between">
+        {icon ? (
+          <span className={`grid h-8 w-8 place-items-center rounded-lg ${a.iconBg} ${a.iconText}`}>
+            {icon}
+          </span>
+        ) : null}
+        <ArrowIcon className="text-ink-subtle opacity-0 transition group-hover:opacity-100" />
+      </div>
+      <span className="mt-3 text-[11.5px] font-medium uppercase tracking-wider text-ink-muted">
+        {label}
+      </span>
+      <span className="mt-0.5 text-[26px] font-semibold tracking-tight text-ink tabular-nums">
+        {value}
+      </span>
+      {delta ? <span className="mt-0.5 text-[11.5px] text-ink-muted">{delta}</span> : null}
+      {hint && !delta ? <span className="mt-0.5 text-[11.5px] text-ink-muted">{hint}</span> : null}
     </Link>
+  );
+}
+
+function ArrowIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M5 11l6-6M5 5h6v6" />
+    </svg>
   );
 }
 
 function KpiCalendarIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
@@ -370,7 +423,7 @@ function KpiCalendarIcon() {
 }
 function KpiClockIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" />
@@ -379,7 +432,7 @@ function KpiClockIcon() {
 }
 function KpiCheckIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M8 12.5l3 3 5-6" />
@@ -388,7 +441,7 @@ function KpiCheckIcon() {
 }
 function KpiXCircleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
       <path d="M9 9l6 6M15 9l-6 6" />
@@ -398,7 +451,7 @@ function KpiXCircleIcon() {
 
 function EmptyIcon() {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="5" width="18" height="16" rx="2" />
       <path d="M16 3v4M8 3v4M3 11h18" />
